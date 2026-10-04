@@ -1,0 +1,53 @@
+{
+  "common": {
+    "loading": "Gutegereza…",
+    "save": "Bika",
+    "cancel": "Reka",
+    "delete": "Siba",
+    "edit": "Hindura",
+    "search": "Shakisha",
+    "filter": "Shungura",
+    "export": "Rohereza",
+    "print": "Tangaza",
+    "close": "Funga",
+    "confirm": "Emeza",
+    "back": "Subira",
+    "next": "Komeza",
+    "yes": "Yego",
+    "no": "Oya",
+    "error": "Habaye ikosa. Ongera ugerageze.",
+    "noResults": "Nta makuru yabonetse.",
+    "retry": "Ongera ugerageze"
+  },
+  "auth": {
+    "login": "Injira",
+    "logout": "Sohoka",
+    "email": "Imeyili",
+    "password": "Ijambo ry'ibanga",
+    "newPassword": "Ijambo ry'ibanga rishya",
+    "currentPassword": "Ijambo ry'ibanga rya none",
+    "changePassword": "Hindura Ijambo ry'ibanga",
+    "invalidCredentials": "Imeyili cyangwa ijambo ry'ibanga sibyo",
+    "sessionExpired": "Igihe cyawe cyarangiye. Ongera injira.",
+    "mustChangePassword": "Banza ushyireho ijambo ry'ibanga rishya.",
+    "loginTitle": "Murakaza neza",
+    "loginSubtitle": "Injira mu konto ya duka ryawe"
+  },
+  "nav": {
+    "sell": "Gurisha",
+    "products": "Ibicuruzwa",
+    "dashboard": "Aho ukurikiranira",
+    "more": "Ibindi",
+    "reports": "Raporo",
+    "purchases": "Ibyaguriwe",
+    "expenses": "Ibishyurwa",
+    "customers": "Abakiriya",
+    "stock": "Ububiko",
+    "settings": "Igenamiterere",
+    "aiAssistant": "Umufasha wa AI"
+  },
+  "offline": {
+    "banner": "Ntabwo ufite interineti. Serivisi zimwe ntizibasha gukorera.",
+    "reconnected": "Wasubiye kuri interineti."
+  }
+}

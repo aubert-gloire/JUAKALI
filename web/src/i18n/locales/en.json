@@ -1,0 +1,93 @@
+{
+  "common": {
+    "loading": "Loading…",
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "search": "Search",
+    "filter": "Filter",
+    "export": "Export",
+    "print": "Print",
+    "close": "Close",
+    "confirm": "Confirm",
+    "back": "Back",
+    "next": "Next",
+    "yes": "Yes",
+    "no": "No",
+    "error": "Something went wrong. Please try again.",
+    "noResults": "No results found.",
+    "retry": "Retry"
+  },
+  "auth": {
+    "login": "Sign In",
+    "logout": "Sign Out",
+    "email": "Email address",
+    "password": "Password",
+    "newPassword": "New password",
+    "currentPassword": "Current password",
+    "changePassword": "Change Password",
+    "invalidCredentials": "Invalid email or password",
+    "sessionExpired": "Your session has expired. Please sign in again.",
+    "mustChangePassword": "Please set a new password before continuing.",
+    "loginTitle": "Welcome back",
+    "loginSubtitle": "Sign in to your shop account"
+  },
+  "nav": {
+    "sell": "Sell",
+    "products": "Products",
+    "dashboard": "Dashboard",
+    "more": "More",
+    "reports": "Reports",
+    "purchases": "Purchases",
+    "expenses": "Expenses",
+    "customers": "Customers",
+    "stock": "Stock",
+    "settings": "Settings",
+    "aiAssistant": "AI Assistant"
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "todaySales": "Today's Sales",
+    "todayProfit": "Today's Profit",
+    "totalExpenses": "Total Expenses",
+    "lowStock": "Low Stock Items",
+    "salesChart": "Sales (Last 30 Days)",
+    "topProducts": "Top Products"
+  },
+  "products": {
+    "title": "Products",
+    "addProduct": "Add Product",
+    "sku": "SKU",
+    "partNumber": "Part Number",
+    "oemNumber": "OEM Number",
+    "name": "Product Name",
+    "brand": "Brand",
+    "category": "Category",
+    "quantity": "Quantity",
+    "costPrice": "Cost Price",
+    "sellingPrice": "Selling Price",
+    "reorderLevel": "Reorder Level",
+    "lowStock": "Low Stock",
+    "importCsv": "Import CSV"
+  },
+  "sales": {
+    "title": "Point of Sale",
+    "addToCart": "Add to Cart",
+    "completeSale": "Complete Sale",
+    "receipt": "Receipt",
+    "voidSale": "Void Sale",
+    "paymentMethod": "Payment Method",
+    "cash": "Cash",
+    "mobileMoney": "Mobile Money",
+    "card": "Card",
+    "credit": "Credit",
+    "subtotal": "Subtotal",
+    "discount": "Discount",
+    "total": "Total"
+  },
+  "offline": {
+    "banner": "You are offline. Some features are unavailable.",
+    "reconnected": "You are back online."
+  }
+}

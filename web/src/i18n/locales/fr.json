@@ -1,0 +1,53 @@
+{
+  "common": {
+    "loading": "Chargement…",
+    "save": "Enregistrer",
+    "cancel": "Annuler",
+    "delete": "Supprimer",
+    "edit": "Modifier",
+    "search": "Rechercher",
+    "filter": "Filtrer",
+    "export": "Exporter",
+    "print": "Imprimer",
+    "close": "Fermer",
+    "confirm": "Confirmer",
+    "back": "Retour",
+    "next": "Suivant",
+    "yes": "Oui",
+    "no": "Non",
+    "error": "Une erreur est survenue. Veuillez réessayer.",
+    "noResults": "Aucun résultat trouvé.",
+    "retry": "Réessayer"
+  },
+  "auth": {
+    "login": "Connexion",
+    "logout": "Déconnexion",
+    "email": "Adresse e-mail",
+    "password": "Mot de passe",
+    "newPassword": "Nouveau mot de passe",
+    "currentPassword": "Mot de passe actuel",
+    "changePassword": "Changer le mot de passe",
+    "invalidCredentials": "E-mail ou mot de passe invalide",
+    "sessionExpired": "Votre session a expiré. Veuillez vous reconnecter.",
+    "mustChangePassword": "Veuillez définir un nouveau mot de passe avant de continuer.",
+    "loginTitle": "Bon retour",
+    "loginSubtitle": "Connectez-vous à votre compte"
+  },
+  "nav": {
+    "sell": "Vendre",
+    "products": "Produits",
+    "dashboard": "Tableau de bord",
+    "more": "Plus",
+    "reports": "Rapports",
+    "purchases": "Achats",
+    "expenses": "Dépenses",
+    "customers": "Clients",
+    "stock": "Stock",
+    "settings": "Paramètres",
+    "aiAssistant": "Assistant IA"
+  },
+  "offline": {
+    "banner": "Vous êtes hors ligne. Certaines fonctionnalités sont indisponibles.",
+    "reconnected": "Vous êtes de nouveau en ligne."
+  }
+}

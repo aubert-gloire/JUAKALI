@@ -1,0 +1,25 @@
+{
+  "name": "juakali",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "server",
+    "web",
+    "scripts"
+  ],
+  "scripts": {
+    "dev:server": "npm run dev --workspace=server",
+    "dev:web": "npm run dev --workspace=web",
+    "build:web": "npm run build --workspace=web",
+    "build:server": "npm run build --workspace=server",
+    "test:server": "npm run test --workspace=server",
+    "test:web": "npm run test --workspace=web",
+    "test": "npm run test:server && npm run test:web",
+    "lint": "npm run lint --workspace=server && npm run lint --workspace=web",
+    "seed": "npm run seed --workspace=scripts",
+    "typecheck": "npm run typecheck --workspace=server && npm run typecheck --workspace=web"
+  },
+  "devDependencies": {
+    "prettier": "^3.3.3"
+  }
+}
