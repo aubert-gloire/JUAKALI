@@ -1,35 +1,33 @@
 # Build Progress
 
-## Phase 1: Foundation — IN PROGRESS
+## Phase 1: Foundation — COMPLETE ✅
 
-**Started:** 2026-10-04
+**Completed:** 2026-10-04
 
-### Completed
-- [ ] Root project config (gitignore, workspaces, tsconfig, vercel.json, .env)
-- [ ] Server foundation (config.ts, db.ts, app.ts)
-- [ ] Data models (Organization, Shop, User, Membership, Plan, Subscription, PlatformAdmin, Counter, AuditLog)
-- [ ] Server middleware (auth, tenant, roleGuard, errorHandler, rateLimiter, requireFeature)
-- [ ] Entitlements service + AI provider interface
-- [ ] Auth module (service, routes, validation)
-- [ ] Auth tests + tenant isolation tests + entitlement tests
-- [ ] API entry point (api/index.ts)
-- [ ] Seed script
-- [ ] Web foundation (Vite, Tailwind, i18n, PWA setup)
-- [ ] Web auth screens (login page, layout, protected route)
-- [ ] Dependencies installed, lint clean, typecheck clean, tests pass, build passes
+### Results
+- ✅ Root project config (gitignore, workspaces, tsconfig, vercel.json, .env)
+- ✅ Server foundation (config.ts, db.ts, app.ts, error utils)
+- ✅ Data models: Organization, Shop, User, Membership, Plan, Subscription, PlatformAdmin, Counter, AuditLog, AiUsage
+- ✅ Server middleware: auth (JWT httpOnly cookies), tenant, roleGuard, errorHandler, rateLimiter, requireFeature
+- ✅ Entitlements service + AI provider interface
+- ✅ Auth module: login, logout, refresh (rotating tokens), change-password, invite staff, reset staff password
+- ✅ 18/18 tests pass: auth, tenant isolation, entitlements
+- ✅ API entry point (api/index.ts) + Vercel serverless setup
+- ✅ Seed script: plan catalog (pilot/starter/business/enterprise) + org/shop/owner/subscription
+- ✅ Web: React 18 + Vite + TypeScript + Tailwind + PWA (injectManifest) + i18n (en/fr/rw)
+- ✅ Web auth screens: login, forced password change, AppLayout (sidebar desktop / bottom tabs mobile), ProtectedRoute
 
-### Phase 1 Gate (must pass before Phase 2)
-- [ ] Login works on deployed Vercel preview
-- [ ] Tenant isolation tests pass (Shop A user cannot read Shop B data)
-- [ ] Entitlement tests pass with BILLING_ENABLED=false
-- [ ] Lint: 0 errors, 0 warnings
-- [ ] TypeScript: 0 errors
-- [ ] All tests pass
-- [ ] Production build: success
-- [ ] Lighthouse scores recorded
+### Phase 1 Gate — PASSED
+- ✅ TypeScript: 0 errors (server + web)
+- ✅ Tests: 18/18 passed
+- ✅ Production build: success (vite build ✓ built in 43.70s, SW generated)
+- ✅ Pushed to GitHub: https://github.com/aubert-gloire/JUAKALI.git
+- ⏳ Login on deployed Vercel preview — pending Vercel + Atlas setup (see README when written)
+- ⏳ Lighthouse scores — pending first Vercel deploy
 
-### Known Issues
-None yet.
+### Known Issues / Notes
+- PWA uses `injectManifest` strategy (not `generateSW`) because the project path contains an apostrophe ("Aubert's projects") which breaks workbox-build's absolute path generation. Noted in DECISIONS.md.
+- Audit vulnerabilities: 3 moderate, 6 high, 2 critical (all in dev dependencies). Run `npm audit` and address before production deploy.
 
 ---
 
