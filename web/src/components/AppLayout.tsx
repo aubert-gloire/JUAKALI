@@ -15,6 +15,8 @@ import {
   Bot,
   Zap,
   ChevronRight,
+  Receipt,
+  Truck,
 } from 'lucide-react';
 import { clsx } from 'clsx';
 
@@ -36,6 +38,7 @@ const NAV_GROUPS = [
     label: 'Inventory',
     items: [
       { to: '/products',  label: 'nav.products',  icon: Package },
+      { to: '/suppliers', label: 'nav.suppliers', icon: Truck },
       { to: '/purchases', label: 'nav.purchases', icon: ShoppingBag },
     ],
   },
@@ -43,6 +46,7 @@ const NAV_GROUPS = [
     label: 'Business',
     items: [
       { to: '/customers', label: 'nav.customers', icon: Users },
+      { to: '/expenses',  label: 'nav.expenses',  icon: Receipt },
       { to: '/reports',   label: 'nav.reports',   icon: BarChart3 },
       { to: '/settings',  label: 'nav.settings',  icon: Settings },
     ],

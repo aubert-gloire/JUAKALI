@@ -12,6 +12,9 @@ import { DashboardPage } from '@/features/dashboard/DashboardPage';
 import { ProductsPage } from '@/features/products/ProductsPage';
 import { SuppliersPage } from '@/features/suppliers/SuppliersPage';
 import { PurchasesPage } from '@/features/purchases/PurchasesPage';
+import { SellPage } from '@/features/pos/SellPage';
+import { CustomersPage } from '@/features/customers/CustomersPage';
+import { ExpensesPage } from '@/features/expenses/ExpensesPage';
 
 function AppSkeleton() {
   return (
@@ -45,9 +48,9 @@ export default function App() {
                 <Route path="/products"   element={<ProductsPage />} />
                 <Route path="/suppliers"  element={<SuppliersPage />} />
                 <Route path="/purchases"  element={<PurchasesPage />} />
-                <Route path="/sell"       element={<PlaceholderPage title="Point of Sale" />} />
-                <Route path="/expenses"   element={<PlaceholderPage title="Expenses" />} />
-                <Route path="/customers"  element={<PlaceholderPage title="Customers" />} />
+                <Route path="/sell"       element={<SellPage />} />
+                <Route path="/expenses"   element={<ExpensesPage />} />
+                <Route path="/customers"  element={<CustomersPage />} />
                 <Route path="/reports"    element={<PlaceholderPage title="Reports" />} />
                 <Route path="/settings"   element={<PlaceholderPage title="Settings" />} />
                 <Route path="/more"       element={<PlaceholderPage title="More" />} />

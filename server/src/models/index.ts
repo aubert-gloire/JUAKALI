@@ -13,6 +13,9 @@ export { Product } from './Product';
 export { Supplier } from './Supplier';
 export { PurchaseOrder } from './PurchaseOrder';
 export { StockMovement } from './StockMovement';
+export { Sale } from './Sale';
+export { Customer } from './Customer';
+export { Expense } from './Expense';
 
 export type { IOrganization } from './Organization';
 export type { IShop } from './Shop';
@@ -28,3 +31,6 @@ export type { IProduct } from './Product';
 export type { ISupplier } from './Supplier';
 export type { IPurchaseOrder, IPurchaseOrderLine, PurchaseStatus } from './PurchaseOrder';
 export type { IStockMovement, MovementType } from './StockMovement';
+export type { ISale, ISaleItem, PaymentMethod, SaleStatus } from './Sale';
+export type { ICustomer } from './Customer';
+export type { IExpense, ExpenseCategory } from './Expense';
