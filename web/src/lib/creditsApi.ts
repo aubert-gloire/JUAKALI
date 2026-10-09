@@ -2,16 +2,12 @@ import { api } from './api';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-export type InstallmentStatus = 'pending' | 'partial' | 'paid' | 'overdue';
 export type CreditStatus = 'active' | 'paid' | 'overdue' | 'defaulted';
 
-export interface Installment {
+export interface PaymentRecord {
   _id: string;
-  dueDate: string;
   amount: number;
-  paidAmount: number;
-  status: InstallmentStatus;
-  paidAt?: string;
+  recordedAt: string;
   notes?: string;
 }
 
@@ -25,8 +21,9 @@ export interface CreditAccount {
   totalAmount: number;
   amountPaid: number;
   balance: number;
+  dueDate?: string;
   status: CreditStatus;
-  installments: Installment[];
+  payments: PaymentRecord[];
   notes?: string;
   createdAt: string;
 }
@@ -69,17 +66,8 @@ export const creditsApi = {
     ),
   get: (id: string) => api.get<{ account: CreditAccount }>(`/credits/${id}`),
   reminders: () => api.get<RemindersResponse>('/credits/reminders'),
-  update: (id: string, body: { notes?: string; customerPhone?: string }) =>
+  update: (id: string, body: { notes?: string; customerPhone?: string; dueDate?: string }) =>
     api.patch<{ account: CreditAccount }>(`/credits/${id}`, body),
-  addInstallment: (id: string, body: { dueDate: string; amount: number; notes?: string }) =>
-    api.post<{ account: CreditAccount }>(`/credits/${id}/installments`, body),
-  recordPayment: (id: string, body: { amount: number; installmentId?: string; notes?: string }) =>
+  recordPayment: (id: string, body: { amount: number; notes?: string }) =>
     api.post<{ account: CreditAccount }>(`/credits/${id}/payment`, body),
-};
-
-export const CREDIT_STATUS_LABELS: Record<CreditStatus, string> = {
-  active: 'Active',
-  paid: 'Paid',
-  overdue: 'Overdue',
-  defaulted: 'Defaulted',
 };

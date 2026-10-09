@@ -4,7 +4,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { toast } from 'sonner';
-import { Users, Plus, Phone, Mail, Search, X, Pencil } from 'lucide-react';
+import { Users, Plus, Phone, Mail, Search, X, Pencil, Trash2 } from 'lucide-react';
 import { customersApi, type Customer, type CustomerBody } from '@/lib/salesApi';
 
 // ── Form schema ────────────────────────────────────────────────────────────────
@@ -121,11 +121,49 @@ function CustomerModal({
   );
 }
 
+// ── Delete confirmation modal ──────────────────────────────────────────────────
+
+function DeleteCustomerModal({ customer, onClose }: { customer: Customer; onClose: () => void }) {
+  const qc = useQueryClient();
+  const mutation = useMutation({
+    mutationFn: () => customersApi.delete(customer._id),
+    onSuccess: () => {
+      toast.success('Customer removed');
+      qc.invalidateQueries({ queryKey: ['sales', 'customers'] });
+      onClose();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+      <div className="relative bg-white dark:bg-slate-800 rounded-xl w-full max-w-sm shadow-2xl p-5">
+        <h2 className="font-semibold text-slate-900 dark:text-slate-100 mb-1">Remove Customer</h2>
+        <p className="text-sm text-slate-500 mb-5">
+          Remove <strong>{customer.name}</strong>? This will hide them from the customer list.
+          Sales history is preserved.
+        </p>
+        <div className="flex justify-end gap-2">
+          <button className="btn-ghost" onClick={onClose}>Cancel</button>
+          <button
+            className="btn-danger"
+            disabled={mutation.isPending}
+            onClick={() => mutation.mutate()}
+          >
+            {mutation.isPending ? 'Removing…' : 'Remove'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export function CustomersPage() {
   const [search, setSearch] = useState('');
   const [modal, setModal] = useState<'add' | Customer | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Customer | null>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ['sales', 'customers', search],
@@ -219,12 +257,20 @@ export function CustomersPage() {
                     RWF {c.totalSpent.toLocaleString()}
                   </td>
                   <td className="px-4 py-3 text-right">
-                    <button
-                      onClick={() => setModal(c)}
-                      className="p-1.5 rounded text-slate-400 hover:text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors"
-                    >
-                      <Pencil size={14} />
-                    </button>
+                    <div className="flex items-center justify-end gap-1">
+                      <button
+                        onClick={() => setModal(c)}
+                        className="p-1.5 rounded text-slate-400 hover:text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors"
+                      >
+                        <Pencil size={14} />
+                      </button>
+                      <button
+                        onClick={() => setDeleteTarget(c)}
+                        className="p-1.5 rounded text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -233,11 +279,16 @@ export function CustomersPage() {
         )}
       </div>
 
-      {/* Modal */}
       {modal !== null && (
         <CustomerModal
           customer={modal === 'add' ? null : modal}
           onClose={() => setModal(null)}
+        />
+      )}
+      {deleteTarget && (
+        <DeleteCustomerModal
+          customer={deleteTarget}
+          onClose={() => setDeleteTarget(null)}
         />
       )}
     </div>

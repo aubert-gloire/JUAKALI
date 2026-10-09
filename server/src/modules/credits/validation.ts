@@ -15,4 +15,5 @@ export const RecordPaymentSchema = z.object({
 export const UpdateCreditSchema = z.object({
   notes: z.string().optional(),
   customerPhone: z.string().optional(),
+  dueDate: z.string().optional(),
 });

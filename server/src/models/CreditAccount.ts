@@ -13,6 +13,14 @@ export interface IInstallment {
   notes?: string;
 }
 
+export interface IPaymentRecord {
+  _id: Types.ObjectId;
+  amount: number;
+  recordedAt: Date;
+  notes?: string;
+  recordedBy: Types.ObjectId;
+}
+
 export interface ICreditAccount extends Document {
   shopId: Types.ObjectId;
   saleId: Types.ObjectId;
@@ -23,8 +31,10 @@ export interface ICreditAccount extends Document {
   totalAmount: number;
   amountPaid: number;
   balance: number;
+  dueDate?: Date;
   status: CreditStatus;
   installments: IInstallment[];
+  payments: IPaymentRecord[];
   notes?: string;
   createdBy: Types.ObjectId;
   createdAt: Date;
@@ -43,6 +53,16 @@ const InstallmentSchema = new Schema<IInstallment>(
   { _id: true },
 );
 
+const PaymentRecordSchema = new Schema<IPaymentRecord>(
+  {
+    amount: { type: Number, required: true },
+    recordedAt: { type: Date, default: Date.now },
+    notes: String,
+    recordedBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+  },
+  { _id: true },
+);
+
 const CreditAccountSchema = new Schema<ICreditAccount>(
   {
     shopId: { type: Schema.Types.ObjectId, required: true, ref: 'Shop' },
@@ -54,8 +74,10 @@ const CreditAccountSchema = new Schema<ICreditAccount>(
     totalAmount: { type: Number, required: true },
     amountPaid: { type: Number, default: 0 },
     balance: { type: Number, required: true },
+    dueDate: Date,
     status: { type: String, enum: ['active', 'paid', 'overdue', 'defaulted'], default: 'active' },
     installments: [InstallmentSchema],
+    payments: { type: [PaymentRecordSchema], default: [] },
     notes: String,
     createdBy: { type: Schema.Types.ObjectId, required: true, ref: 'User' },
   },

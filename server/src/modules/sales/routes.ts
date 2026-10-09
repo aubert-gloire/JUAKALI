@@ -274,8 +274,10 @@ salesRouter.post(
         ? await Customer.findById(body.customerId).lean()
         : null;
 
-      const installments = body.creditDueDate
-        ? [{ dueDate: new Date(body.creditDueDate), amount: total, paidAmount: 0, status: 'pending' as const }]
+      const upfront = body.creditUpfrontAmount ?? 0;
+      const creditBalance = total - upfront;
+      const initialPayments = upfront > 0
+        ? [{ amount: upfront, recordedAt: new Date(), notes: 'Paid at time of sale', recordedBy: req.user!.id }]
         : [];
 
       await CreditAccount.create({
@@ -286,10 +288,12 @@ salesRouter.post(
         customerName: sale.customerName ?? 'Walk-in Customer',
         customerPhone: customer?.phone,
         totalAmount: total,
-        amountPaid: 0,
-        balance: total,
-        status: 'active',
-        installments,
+        amountPaid: upfront,
+        balance: creditBalance,
+        dueDate: body.creditDueDate ? new Date(body.creditDueDate) : undefined,
+        status: creditBalance <= 0 ? 'paid' : 'active',
+        installments: [],
+        payments: initialPayments,
         createdBy: req.user!.id,
       });
     }
@@ -387,6 +391,20 @@ salesRouter.patch(
   }),
 );
 
+salesRouter.delete(
+  '/customers/:id',
+  requireRole('manager'),
+  asyncHandler(async (req, res) => {
+    const customer = await Customer.findOneAndUpdate(
+      { _id: req.params.id, ...shopFilter(req) },
+      { isActive: false },
+      { new: true },
+    );
+    if (!customer) throw Errors.notFound('Customer');
+    res.json({ ok: true });
+  }),
+);
+
 // ── EXPENSES ──────────────────────────────────────────────────────────────────
 
 salesRouter.get(
@@ -416,6 +434,23 @@ salesRouter.post(
       recordedBy: req.user!.id,
     });
     res.status(201).json({ expense });
+  }),
+);
+
+salesRouter.patch(
+  '/expenses/:id',
+  requireRole('manager'),
+  asyncHandler(async (req, res) => {
+    const body = ExpenseSchema.partial().parse(req.body);
+    const update: Record<string, unknown> = { ...body };
+    if (body.date) update.date = new Date(body.date);
+    const expense = await Expense.findOneAndUpdate(
+      { _id: req.params.id, ...shopFilter(req) },
+      update,
+      { new: true },
+    );
+    if (!expense) throw Errors.notFound('Expense');
+    res.json({ expense });
   }),
 );
 

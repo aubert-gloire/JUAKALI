@@ -86,12 +86,13 @@ function PaymentModal({
   total: number;
   paymentMethod: PaymentMethod;
   onChangeMethod: (m: PaymentMethod) => void;
-  onConfirm: (tendered?: number, creditDueDate?: string) => void;
+  onConfirm: (tendered?: number, creditDueDate?: string, creditUpfront?: number) => void;
   onClose: () => void;
   isPending: boolean;
 }) {
   const [tendered, setTendered] = useState('');
   const [creditDueDate, setCreditDueDate] = useState('');
+  const [creditUpfront, setCreditUpfront] = useState('');
 
   if (!open) return null;
 
@@ -225,15 +226,44 @@ function PaymentModal({
               </p>
             </div>
             {paymentMethod === 'credit' && (
-              <div>
-                <label className="text-xs text-slate-500 block mb-1">First payment due (optional)</label>
-                <input
-                  type="date"
-                  className="input text-sm"
-                  value={creditDueDate}
-                  min={new Date().toISOString().slice(0, 10)}
-                  onChange={(e) => setCreditDueDate(e.target.value)}
-                />
+              <div className="space-y-3 text-left">
+                <div>
+                  <label className="text-xs font-medium text-slate-600 dark:text-slate-400 block mb-1">
+                    Amount paid now <span className="font-normal text-slate-400">(optional)</span>
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-slate-400">RWF</span>
+                    <input
+                      type="number"
+                      min={0}
+                      max={total}
+                      className="input pl-10 text-sm"
+                      placeholder="0"
+                      value={creditUpfront}
+                      onChange={(e) => setCreditUpfront(e.target.value)}
+                    />
+                  </div>
+                </div>
+                {parseFloat(creditUpfront) > 0 && (
+                  <div className="bg-amber-50 dark:bg-amber-900/20 rounded-lg px-3 py-2 flex justify-between text-xs">
+                    <span className="text-slate-500">Balance remaining</span>
+                    <span className="font-bold text-amber-700 dark:text-amber-400">
+                      RWF {Math.max(0, total - parseFloat(creditUpfront)).toLocaleString()}
+                    </span>
+                  </div>
+                )}
+                <div>
+                  <label className="text-xs font-medium text-slate-600 dark:text-slate-400 block mb-1">
+                    Full payment due by <span className="font-normal text-slate-400">(optional)</span>
+                  </label>
+                  <input
+                    type="date"
+                    className="input text-sm"
+                    value={creditDueDate}
+                    min={new Date().toISOString().slice(0, 10)}
+                    onChange={(e) => setCreditDueDate(e.target.value)}
+                  />
+                </div>
               </div>
             )}
           </div>
@@ -246,6 +276,9 @@ function PaymentModal({
               onConfirm(
                 paymentMethod === 'cash' && tenderedNum > 0 ? tenderedNum : undefined,
                 paymentMethod === 'credit' && creditDueDate ? creditDueDate : undefined,
+                paymentMethod === 'credit' && parseFloat(creditUpfront) > 0
+                  ? Math.round(parseFloat(creditUpfront))
+                  : undefined,
               )
             }
             disabled={isPending || !canConfirm}
@@ -380,7 +413,7 @@ export function SellPage() {
   const removeFromCart = (productId: string) =>
     setCart((prev) => prev.filter((l) => l.product._id !== productId));
 
-  const handleConfirmPayment = (tendered?: number, creditDueDate?: string) => {
+  const handleConfirmPayment = (tendered?: number, creditDueDate?: string, creditUpfront?: number) => {
     completeSale.mutate({
       items: cart.map((l) => ({ productId: l.product._id, qty: l.qty })),
       discountAmount: discountAmt,
@@ -389,6 +422,7 @@ export function SellPage() {
       customerId: selectedCustomer?._id,
       customerName: selectedCustomer?.name,
       creditDueDate,
+      creditUpfrontAmount: creditUpfront,
     });
   };
 

@@ -4,7 +4,7 @@ import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { toast } from 'sonner';
-import { Plus, ShoppingBag, X, Trash2, CheckCircle, ChevronDown } from 'lucide-react';
+import { Plus, ShoppingBag, X, Trash2, CheckCircle, ChevronDown, XCircle } from 'lucide-react';
 import { purchasesApi, suppliersApi, productsApi } from '@/lib/inventoryApi';
 import { clsx } from 'clsx';
 
@@ -224,6 +224,15 @@ export function PurchasesPage() {
     onError: (e) => toast.error(e.message),
   });
 
+  const cancel = useMutation({
+    mutationFn: (id: string) => purchasesApi.update(id, { status: 'cancelled' }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['inventory', 'purchases'] });
+      toast.success('Purchase order cancelled');
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
   const orders = data?.orders ?? [];
 
   return (
@@ -277,14 +286,24 @@ export function PurchasesPage() {
                       </td>
                       <td className="px-4 py-3 text-right">
                         {(o.status === 'draft' || o.status === 'ordered') && (
-                          <button
-                            onClick={() => receive.mutate(o._id)}
-                            disabled={receive.isPending}
-                            className="flex items-center gap-1 text-xs font-medium text-green-600 hover:text-green-700 px-2 py-1 rounded hover:bg-green-50 transition-colors"
-                            title="Mark as received & update stock"
-                          >
-                            <CheckCircle size={13} /> Receive
-                          </button>
+                          <div className="flex items-center justify-end gap-1">
+                            <button
+                              onClick={() => receive.mutate(o._id)}
+                              disabled={receive.isPending || cancel.isPending}
+                              className="flex items-center gap-1 text-xs font-medium text-green-600 hover:text-green-700 px-2 py-1 rounded hover:bg-green-50 transition-colors"
+                              title="Mark as received & update stock"
+                            >
+                              <CheckCircle size={13} /> Receive
+                            </button>
+                            <button
+                              onClick={() => cancel.mutate(o._id)}
+                              disabled={receive.isPending || cancel.isPending}
+                              className="flex items-center gap-1 text-xs font-medium text-red-500 hover:text-red-700 px-2 py-1 rounded hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                              title="Cancel this purchase order"
+                            >
+                              <XCircle size={13} /> Cancel
+                            </button>
+                          </div>
                         )}
                       </td>
                     </tr>

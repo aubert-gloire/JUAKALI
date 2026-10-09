@@ -4,7 +4,8 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { toast } from 'sonner';
-import { Receipt, Plus, Trash2, X, AlertCircle } from 'lucide-react';
+import { Receipt, Plus, Trash2, X, AlertCircle, Pencil } from 'lucide-react';
+import type { Expense } from '@/lib/salesApi';
 import {
   expensesApi,
   type ExpenseBody,
@@ -139,6 +140,74 @@ function AddExpenseModal({ onClose }: { onClose: () => void }) {
   );
 }
 
+// ── Edit expense modal ────────────────────────────────────────────────────────
+
+function EditExpenseModal({ expense, onClose }: { expense: Expense; onClose: () => void }) {
+  const qc = useQueryClient();
+  const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
+    resolver: zodResolver(schema),
+    defaultValues: {
+      category: expense.category,
+      amount: expense.amount,
+      description: expense.description,
+      date: expense.date.slice(0, 10),
+    },
+  });
+  const mutation = useMutation({
+    mutationFn: (body: Partial<ExpenseBody>) => expensesApi.update(expense._id, body),
+    onSuccess: () => {
+      toast.success('Expense updated');
+      qc.invalidateQueries({ queryKey: ['sales', 'expenses'] });
+      qc.invalidateQueries({ queryKey: ['sales', 'stats'] });
+      onClose();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+      <div className="relative bg-white dark:bg-slate-800 rounded-xl w-full max-w-sm shadow-2xl">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-700">
+          <h2 className="font-semibold text-slate-900 dark:text-slate-100">Edit Expense</h2>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={18} /></button>
+        </div>
+        <form onSubmit={handleSubmit((d) => mutation.mutate(d))} className="p-5 space-y-4">
+          <div>
+            <label className="form-label">Category *</label>
+            <select className="input" {...register('category')}>
+              {EXPENSE_CATEGORIES.map((c) => (
+                <option key={c} value={c}>{EXPENSE_LABELS[c]}</option>
+              ))}
+            </select>
+            {errors.category && <p className="form-error">{errors.category.message}</p>}
+          </div>
+          <div>
+            <label className="form-label">Amount (RWF) *</label>
+            <input type="number" min={1} className="input" {...register('amount')} />
+            {errors.amount && <p className="form-error">{errors.amount.message}</p>}
+          </div>
+          <div>
+            <label className="form-label">Description *</label>
+            <input className="input" {...register('description')} />
+            {errors.description && <p className="form-error">{errors.description.message}</p>}
+          </div>
+          <div>
+            <label className="form-label">Date *</label>
+            <input type="date" className="input" {...register('date')} />
+            {errors.date && <p className="form-error">{errors.date.message}</p>}
+          </div>
+          <div className="flex justify-end gap-2 pt-1">
+            <button type="button" className="btn-ghost" onClick={onClose}>Cancel</button>
+            <button type="submit" disabled={mutation.isPending} className="btn-primary">
+              {mutation.isPending ? 'Saving…' : 'Save Changes'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 // ── Delete confirm ─────────────────────────────────────────────────────────────
 
 function DeleteConfirm({
@@ -190,6 +259,7 @@ function DeleteConfirm({
 export function ExpensesPage() {
   const [page, setPage] = useState(1);
   const [showAdd, setShowAdd] = useState(false);
+  const [editTarget, setEditTarget] = useState<Expense | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; description: string } | null>(null);
 
   const { data, isLoading } = useQuery({
@@ -260,12 +330,20 @@ export function ExpensesPage() {
                     RWF {e.amount.toLocaleString()}
                   </td>
                   <td className="px-4 py-3 text-right">
-                    <button
-                      onClick={() => setDeleteTarget({ id: e._id, description: e.description })}
-                      className="p-1.5 rounded text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-                    >
-                      <Trash2 size={14} />
-                    </button>
+                    <div className="flex items-center justify-end gap-1">
+                      <button
+                        onClick={() => setEditTarget(e)}
+                        className="p-1.5 rounded text-slate-400 hover:text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors"
+                      >
+                        <Pencil size={14} />
+                      </button>
+                      <button
+                        onClick={() => setDeleteTarget({ id: e._id, description: e.description })}
+                        className="p-1.5 rounded text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -298,6 +376,7 @@ export function ExpensesPage() {
       )}
 
       {showAdd && <AddExpenseModal onClose={() => setShowAdd(false)} />}
+      {editTarget && <EditExpenseModal expense={editTarget} onClose={() => setEditTarget(null)} />}
       {deleteTarget && (
         <DeleteConfirm
           expenseId={deleteTarget.id}

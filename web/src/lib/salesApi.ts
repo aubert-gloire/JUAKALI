@@ -110,6 +110,7 @@ export type CompleteSaleBody = {
   customerName?: string;
   notes?: string;
   creditDueDate?: string;
+  creditUpfrontAmount?: number;
 };
 
 export type SalesListParams = {
@@ -141,6 +142,7 @@ export const customersApi = {
   create: (body: CustomerBody) => api.post<{ customer: Customer }>('/sales/customers', body),
   update: (id: string, body: Partial<CustomerBody>) =>
     api.patch<{ customer: Customer }>(`/sales/customers/${id}`, body),
+  delete: (id: string) => api.delete(`/sales/customers/${id}`),
 };
 
 // ── Expenses ──────────────────────────────────────────────────────────────────
@@ -158,6 +160,8 @@ export const expensesApi = {
       `/sales/expenses${qs(page ? { page } : undefined)}`,
     ),
   create: (body: ExpenseBody) => api.post<{ expense: Expense }>('/sales/expenses', body),
+  update: (id: string, body: Partial<ExpenseBody>) =>
+    api.patch<{ expense: Expense }>(`/sales/expenses/${id}`, body),
   delete: (id: string) => api.delete(`/sales/expenses/${id}`),
 };
 

@@ -5,7 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { toast } from 'sonner';
 import {
-  Plus, Search, Upload, Edit2, Package, Sliders, X, ChevronDown,
+  Plus, Search, Upload, Edit2, Package, Sliders, X, ChevronDown, PowerOff,
 } from 'lucide-react';
 import { categoriesApi, productsApi, Category, Product } from '@/lib/inventoryApi';
 import { clsx } from 'clsx';
@@ -287,6 +287,7 @@ export function ProductsPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [csvOpen, setCsvOpen] = useState(false);
   const [editing, setEditing] = useState<Product | null>(null);
+  const [deactivateTarget, setDeactivateTarget] = useState<Product | null>(null);
 
   const catsQ = useCategories();
   const prodQ = useProducts(search, categoryFilter, page);
@@ -396,12 +397,21 @@ export function ProductsPage() {
                       {fmt(p.sellingPrice)}
                     </td>
                     <td className="px-4 py-3 text-right">
-                      <button
-                        onClick={() => openEdit(p)}
-                        className="p-1.5 rounded text-slate-400 hover:text-primary-600 hover:bg-primary-50 transition-colors"
-                      >
-                        <Edit2 size={14} />
-                      </button>
+                      <div className="flex items-center justify-end gap-1">
+                        <button
+                          onClick={() => openEdit(p)}
+                          className="p-1.5 rounded text-slate-400 hover:text-primary-600 hover:bg-primary-50 transition-colors"
+                        >
+                          <Edit2 size={14} />
+                        </button>
+                        <button
+                          onClick={() => setDeactivateTarget(p)}
+                          className="p-1.5 rounded text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                          title="Deactivate product"
+                        >
+                          <PowerOff size={14} />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -443,6 +453,47 @@ export function ProductsPage() {
         categories={categories}
       />
       <CsvModal open={csvOpen} onClose={() => setCsvOpen(false)} />
+
+      {deactivateTarget && (
+        <DeactivateProductModal
+          product={deactivateTarget}
+          onClose={() => setDeactivateTarget(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+function DeactivateProductModal({ product, onClose }: { product: Product; onClose: () => void }) {
+  const qc = useQueryClient();
+  const mutation = useMutation({
+    mutationFn: () => productsApi.deactivate(product._id),
+    onSuccess: () => {
+      toast.success(`${product.name} deactivated`);
+      qc.invalidateQueries({ queryKey: ['inventory', 'products'] });
+      onClose();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+      <div className="relative bg-white dark:bg-slate-800 rounded-xl w-full max-w-sm shadow-2xl p-5">
+        <h2 className="font-semibold text-slate-900 dark:text-slate-100 mb-1">Deactivate Product</h2>
+        <p className="text-sm text-slate-500 mb-5">
+          <strong>{product.name}</strong> will be hidden from the POS and inventory. Existing sales history is preserved.
+        </p>
+        <div className="flex justify-end gap-2">
+          <button className="btn-ghost" onClick={onClose}>Cancel</button>
+          <button
+            className="btn-danger"
+            disabled={mutation.isPending}
+            onClick={() => mutation.mutate()}
+          >
+            {mutation.isPending ? 'Deactivating…' : 'Deactivate'}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

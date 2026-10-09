@@ -20,15 +20,17 @@ function shopFilter(req: Parameters<typeof requireTenant>[0]) {
 creditsRouter.get(
   '/reminders',
   asyncHandler(async (req, res) => {
-    const today = new Date();
-    today.setHours(23, 59, 59, 999);
+    const now = new Date();
+    const todayEnd = new Date();
+    todayEnd.setHours(23, 59, 59, 999);
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
+    const in3Days = new Date(todayEnd.getTime() + 3 * 24 * 60 * 60 * 1000);
 
     const accounts = await CreditAccount.find({
       ...shopFilter(req),
       status: { $in: ['active', 'overdue'] },
-      'installments.status': { $in: ['pending', 'partial', 'overdue'] },
+      dueDate: { $lte: in3Days },
     }).lean();
 
     const items: {
@@ -42,33 +44,43 @@ creditsRouter.get(
     }[] = [];
 
     for (const account of accounts) {
-      for (const inst of account.installments) {
-        if (inst.status === 'paid') continue;
-        const due = new Date(inst.dueDate);
-        const remaining = inst.amount - inst.paidAmount;
-        if (remaining <= 0) continue;
+      if (!account.dueDate || account.balance <= 0) continue;
+      const due = new Date(account.dueDate);
 
-        let type: 'overdue' | 'today' | 'upcoming' | null = null;
-        if (due < todayStart) type = 'overdue';
-        else if (due <= today) type = 'today';
-        else {
-          // upcoming within 3 days
-          const diff = (due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24);
-          if (diff <= 3) type = 'upcoming';
-        }
+      let type: 'overdue' | 'today' | 'upcoming';
+      if (due < todayStart) type = 'overdue';
+      else if (due <= todayEnd) type = 'today';
+      else type = 'upcoming';
 
-        if (type) {
-          items.push({
-            creditAccountId: account._id.toString(),
-            customerName: account.customerName,
-            customerPhone: account.customerPhone,
-            saleNumber: account.saleNumber,
-            amount: remaining,
-            dueDate: due.toISOString().slice(0, 10),
-            type,
-          });
-        }
-      }
+      items.push({
+        creditAccountId: account._id.toString(),
+        customerName: account.customerName,
+        customerPhone: account.customerPhone,
+        saleNumber: account.saleNumber,
+        amount: account.balance,
+        dueDate: due.toISOString().slice(0, 10),
+        type,
+      });
+    }
+
+    // Also include overdue accounts without a dueDate
+    const overdueNoDue = await CreditAccount.find({
+      ...shopFilter(req),
+      status: 'overdue',
+      dueDate: { $exists: false },
+    }).lean();
+
+    for (const account of overdueNoDue) {
+      if (account.balance <= 0) continue;
+      items.push({
+        creditAccountId: account._id.toString(),
+        customerName: account.customerName,
+        customerPhone: account.customerPhone,
+        saleNumber: account.saleNumber,
+        amount: account.balance,
+        dueDate: now.toISOString().slice(0, 10),
+        type: 'overdue',
+      });
     }
 
     items.sort((a, b) => {
@@ -125,12 +137,22 @@ creditsRouter.patch(
   '/:id',
   asyncHandler(async (req, res) => {
     const body = UpdateCreditSchema.parse(req.body);
-    const account = await CreditAccount.findOneAndUpdate(
-      { _id: req.params.id, ...shopFilter(req) },
-      { $set: body },
-      { new: true },
-    );
+    const update: Record<string, unknown> = { ...body };
+    if (body.dueDate !== undefined) {
+      update.dueDate = body.dueDate ? new Date(body.dueDate) : null;
+      delete update.dueDate; // handled separately
+    }
+    const account = await CreditAccount.findOne({ _id: req.params.id, ...shopFilter(req) });
     if (!account) throw Errors.notFound('Credit account');
+    if (body.notes !== undefined) account.notes = body.notes;
+    if (body.customerPhone !== undefined) account.customerPhone = body.customerPhone;
+    if (body.dueDate !== undefined) account.dueDate = body.dueDate ? new Date(body.dueDate) : undefined;
+    // Re-evaluate overdue status when dueDate changes
+    if (body.dueDate !== undefined && account.status !== 'paid') {
+      const now = new Date();
+      account.status = account.dueDate && account.dueDate < now ? 'overdue' : 'active';
+    }
+    await account.save();
     res.json({ account });
   }),
 );
@@ -168,57 +190,25 @@ creditsRouter.post(
     if (!account) throw Errors.notFound('Credit account');
     if (account.status === 'paid') throw Errors.validation('Account is already fully paid');
 
-    let remaining = body.amount;
+    const paying = Math.min(body.amount, account.balance);
 
-    if (body.installmentId) {
-      // Apply to a specific installment
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const inst = (account.installments as any).id(body.installmentId) as (typeof account.installments)[0] | null;
-      if (!inst) throw Errors.notFound('Installment');
-      const canPay = inst.amount - inst.paidAmount;
-      const paying = Math.min(remaining, canPay);
-      inst.paidAmount += paying;
-      if (inst.paidAmount >= inst.amount) {
-        inst.status = 'paid';
-        inst.paidAt = new Date();
-      } else {
-        inst.status = 'partial';
-      }
-      remaining -= paying;
-    } else {
-      // Apply to oldest unpaid installments first
-      const unpaid = account.installments
-        .filter((i) => i.status !== 'paid')
-        .sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime());
+    // Record in payments array
+    account.payments.push({
+      amount: paying,
+      recordedAt: new Date(),
+      notes: body.notes,
+      recordedBy: req.user!.id as unknown as import('mongoose').Types.ObjectId,
+    } as never);
 
-      for (const inst of unpaid) {
-        if (remaining <= 0) break;
-        const canPay = inst.amount - inst.paidAmount;
-        const paying = Math.min(remaining, canPay);
-        inst.paidAmount += paying;
-        if (inst.paidAmount >= inst.amount) {
-          inst.status = 'paid';
-          inst.paidAt = new Date();
-        } else {
-          inst.status = 'partial';
-        }
-        remaining -= paying;
-      }
-    }
-
-    account.amountPaid += body.amount - remaining;
+    account.amountPaid += paying;
     account.balance = account.totalAmount - account.amountPaid;
 
     if (account.balance <= 0) {
       account.status = 'paid';
       account.balance = 0;
     } else {
-      // Re-evaluate overdue status
       const now = new Date();
-      const hasOverdue = account.installments.some(
-        (i) => i.status !== 'paid' && new Date(i.dueDate) < now,
-      );
-      account.status = hasOverdue ? 'overdue' : 'active';
+      account.status = account.dueDate && account.dueDate < now ? 'overdue' : 'active';
     }
 
     await account.save();

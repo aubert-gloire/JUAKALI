@@ -4,7 +4,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { toast } from 'sonner';
-import { Plus, Edit2, Truck, X, Phone, Mail } from 'lucide-react';
+import { Plus, Edit2, Truck, X, Phone, Mail, PowerOff } from 'lucide-react';
 import { suppliersApi, Supplier } from '@/lib/inventoryApi';
 
 // ── Schema ────────────────────────────────────────────────────────────────────
@@ -105,6 +105,7 @@ function SupplierModal({
 export function SuppliersPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Supplier | null>(null);
+  const [deactivateTarget, setDeactivateTarget] = useState<Supplier | null>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ['inventory', 'suppliers'],
@@ -167,12 +168,21 @@ export function SuppliersPage() {
                     </td>
                     <td className="px-4 py-3 text-xs text-slate-500 hidden lg:table-cell">{s.address ?? '—'}</td>
                     <td className="px-4 py-3 text-right">
-                      <button
-                        onClick={() => { setEditing(s); setModalOpen(true); }}
-                        className="p-1.5 rounded text-slate-400 hover:text-primary-600 hover:bg-primary-50 transition-colors"
-                      >
-                        <Edit2 size={14} />
-                      </button>
+                      <div className="flex items-center justify-end gap-1">
+                        <button
+                          onClick={() => { setEditing(s); setModalOpen(true); }}
+                          className="p-1.5 rounded text-slate-400 hover:text-primary-600 hover:bg-primary-50 transition-colors"
+                        >
+                          <Edit2 size={14} />
+                        </button>
+                        <button
+                          onClick={() => setDeactivateTarget(s)}
+                          className="p-1.5 rounded text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                          title="Deactivate supplier"
+                        >
+                          <PowerOff size={14} />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -187,6 +197,46 @@ export function SuppliersPage() {
         onClose={() => { setModalOpen(false); setEditing(null); }}
         editing={editing}
       />
+      {deactivateTarget && (
+        <DeactivateSupplierModal
+          supplier={deactivateTarget}
+          onClose={() => setDeactivateTarget(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+function DeactivateSupplierModal({ supplier, onClose }: { supplier: Supplier; onClose: () => void }) {
+  const qc = useQueryClient();
+  const mutation = useMutation({
+    mutationFn: () => suppliersApi.deactivate(supplier._id),
+    onSuccess: () => {
+      toast.success(`${supplier.name} deactivated`);
+      qc.invalidateQueries({ queryKey: ['inventory', 'suppliers'] });
+      onClose();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+      <div className="relative bg-white dark:bg-slate-800 rounded-xl w-full max-w-sm shadow-2xl p-5">
+        <h2 className="font-semibold text-slate-900 dark:text-slate-100 mb-1">Deactivate Supplier</h2>
+        <p className="text-sm text-slate-500 mb-5">
+          <strong>{supplier.name}</strong> will be hidden from supplier lists. Purchase history is preserved.
+        </p>
+        <div className="flex justify-end gap-2">
+          <button className="btn-ghost" onClick={onClose}>Cancel</button>
+          <button
+            className="btn-danger"
+            disabled={mutation.isPending}
+            onClick={() => mutation.mutate()}
+          >
+            {mutation.isPending ? 'Deactivating…' : 'Deactivate'}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
