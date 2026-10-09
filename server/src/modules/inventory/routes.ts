@@ -9,6 +9,7 @@ import { Errors } from '../../utils/errors';
 import { nextSeq } from '../../models/Counter';
 import { Category } from '../../models/Category';
 import { Product } from '../../models/Product';
+import { Sale } from '../../models/Sale';
 import { Supplier } from '../../models/Supplier';
 import { PurchaseOrder } from '../../models/PurchaseOrder';
 import { StockMovement } from '../../models/StockMovement';
@@ -140,6 +141,44 @@ inventoryRouter.get(
       lowStock,
       inventoryValue: valueAgg[0]?.totalValue ?? 0,
     });
+  }),
+);
+
+inventoryRouter.get(
+  '/products/top-sellers',
+  asyncHandler(async (req, res) => {
+    const { limit = '10' } = req.query as Record<string, string>;
+    const limitNum = Math.min(20, parseInt(limit) || 10);
+
+    const rows = await Sale.aggregate([
+      { $match: { shopId: req.tenant!.shopId, status: 'completed' } },
+      { $unwind: '$items' },
+      {
+        $group: {
+          _id: '$items.productId',
+          productName: { $first: '$items.productName' },
+          sku: { $first: '$items.sku' },
+          qtySold: { $sum: '$items.qty' },
+          revenue: { $sum: '$items.totalPrice' },
+          profit: { $sum: { $subtract: ['$items.totalPrice', '$items.totalCost'] } },
+        },
+      },
+      { $sort: { revenue: -1 } },
+      { $limit: limitNum },
+      {
+        $project: {
+          _id: 0,
+          productId: '$_id',
+          productName: 1,
+          sku: 1,
+          qtySold: 1,
+          revenue: 1,
+          profit: 1,
+        },
+      },
+    ]);
+
+    res.json({ topSellers: rows });
   }),
 );
 

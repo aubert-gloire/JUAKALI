@@ -105,10 +105,21 @@ export type ProductCreateBody = {
   description?: string;
 };
 
+export interface TopSeller {
+  productId: string;
+  productName: string;
+  sku: string;
+  qtySold: number;
+  revenue: number;
+  profit: number;
+}
+
 export const productsApi = {
   list: (params?: { search?: string; category?: string; lowStock?: boolean; page?: number; limit?: number }) =>
     api.get<ProductsResponse>(`/inventory/products${qs(params)}`),
   stats: () => api.get<{ total: number; lowStock: number; inventoryValue: number }>('/inventory/products/stats'),
+  topSellers: (limit?: number) =>
+    api.get<{ topSellers: TopSeller[] }>(`/inventory/products/top-sellers${qs(limit ? { limit } : undefined)}`),
   get: (id: string) => api.get<{ product: Product }>(`/inventory/products/${id}`),
   create: (body: ProductCreateBody) => api.post<{ product: Product }>('/inventory/products', body),
   update: (id: string, body: Partial<ProductCreateBody>) =>

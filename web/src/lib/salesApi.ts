@@ -154,10 +154,20 @@ export type ExpenseBody = {
   date: string;
 };
 
+export interface ExpenseCategorySummary {
+  category: ExpenseCategory;
+  total: number;
+  count: number;
+}
+
 export const expensesApi = {
   list: (page?: number) =>
     api.get<{ expenses: Expense[]; total: number; page: number; pages: number }>(
       `/sales/expenses${qs(page ? { page } : undefined)}`,
+    ),
+  summary: (params?: { from?: string; to?: string }) =>
+    api.get<{ categories: ExpenseCategorySummary[]; total: number }>(
+      `/sales/expenses/summary${qs(params)}`,
     ),
   create: (body: ExpenseBody) => api.post<{ expense: Expense }>('/sales/expenses', body),
   update: (id: string, body: Partial<ExpenseBody>) =>

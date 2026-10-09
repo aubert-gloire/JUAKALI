@@ -5,9 +5,9 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { toast } from 'sonner';
 import {
-  Plus, Search, Upload, Edit2, Package, Sliders, X, ChevronDown, PowerOff,
+  Plus, Search, Upload, Edit2, Package, Sliders, X, ChevronDown, PowerOff, TrendingUp,
 } from 'lucide-react';
-import { categoriesApi, productsApi, Category, Product } from '@/lib/inventoryApi';
+import { categoriesApi, productsApi, type TopSeller, Category, Product } from '@/lib/inventoryApi';
 import { clsx } from 'clsx';
 
 // ── Schemas ───────────────────────────────────────────────────────────────────
@@ -278,6 +278,59 @@ function CsvModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   );
 }
 
+// ── Top Sellers panel ─────────────────────────────────────────────────────────
+
+function TopSellersPanel() {
+  const { data } = useQuery({
+    queryKey: ['inventory', 'products', 'top-sellers'],
+    queryFn: () => productsApi.topSellers(8),
+    staleTime: 60_000,
+  });
+
+  const rows: TopSeller[] = data?.topSellers ?? [];
+  if (rows.length === 0) return null;
+
+  const maxRevenue = rows[0]?.revenue ?? 1;
+
+  return (
+    <div className="card p-4">
+      <div className="flex items-center gap-2 mb-3">
+        <TrendingUp size={15} className="text-primary-500" />
+        <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-200">Top Selling Products</h2>
+        <span className="ml-auto text-xs text-slate-400">All time · by revenue</span>
+      </div>
+      <div className="space-y-2.5">
+        {rows.map((p, i) => {
+          const pct = (p.revenue / maxRevenue) * 100;
+          return (
+            <div key={p.productId}>
+              <div className="flex items-center justify-between mb-1">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="text-[10px] font-bold text-slate-400 w-4 text-right flex-shrink-0">{i + 1}</span>
+                  <span className="text-sm text-slate-800 dark:text-slate-200 font-medium truncate">{p.productName}</span>
+                  <span className="text-[10px] text-slate-400 flex-shrink-0">{p.qtySold.toLocaleString()} sold</span>
+                </div>
+                <div className="text-right flex-shrink-0 ml-2">
+                  <span className="text-sm font-semibold text-slate-800 dark:text-slate-200 tabular-nums">
+                    RWF {p.revenue.toLocaleString()}
+                  </span>
+                  <span className="text-[10px] text-green-500 ml-1.5">+{p.profit.toLocaleString()}</span>
+                </div>
+              </div>
+              <div className="h-1.5 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden ml-6">
+                <div
+                  className="h-full bg-primary-500 rounded-full transition-all"
+                  style={{ width: `${pct}%` }}
+                />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 export function ProductsPage() {
@@ -303,6 +356,7 @@ export function ProductsPage() {
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">Products</h1>
+
         <div className="flex items-center gap-2">
           <button onClick={() => setCsvOpen(true)} className="btn-secondary gap-1.5">
             <Upload size={15} /> Import CSV
@@ -312,6 +366,9 @@ export function ProductsPage() {
           </button>
         </div>
       </div>
+
+      {/* Top sellers */}
+      <TopSellersPanel />
 
       {/* Filters */}
       <div className="flex flex-wrap gap-2">

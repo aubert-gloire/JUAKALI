@@ -408,6 +408,54 @@ salesRouter.delete(
 // ── EXPENSES ──────────────────────────────────────────────────────────────────
 
 salesRouter.get(
+  '/expenses/summary',
+  asyncHandler(async (req, res) => {
+    const { from, to } = req.query as Record<string, string>;
+    const dateFilter: Record<string, unknown> = {};
+    if (from) dateFilter.$gte = new Date(from);
+    if (to) dateFilter.$lte = new Date(to);
+
+    const pipeline = [
+      {
+        $match: {
+          ...shopFilter(req),
+          ...(Object.keys(dateFilter).length ? { date: dateFilter } : {}),
+        },
+      },
+      {
+        $group: {
+          _id: '$category',
+          total: { $sum: '$amount' },
+          count: { $sum: 1 },
+        },
+      },
+      { $sort: { total: -1 as const } },
+      {
+        $project: {
+          _id: 0,
+          category: '$_id',
+          total: 1,
+          count: 1,
+        },
+      },
+    ];
+
+    const [rows, grandTotal] = await Promise.all([
+      Expense.aggregate(pipeline),
+      Expense.aggregate([
+        { $match: { ...shopFilter(req), ...(Object.keys(dateFilter).length ? { date: dateFilter } : {}) } },
+        { $group: { _id: null, total: { $sum: '$amount' } } },
+      ]),
+    ]);
+
+    res.json({
+      categories: rows,
+      total: grandTotal[0]?.total ?? 0,
+    });
+  }),
+);
+
+salesRouter.get(
   '/expenses',
   asyncHandler(async (req, res) => {
     const { page = '1', limit = '30' } = req.query as Record<string, string>;

@@ -4,12 +4,13 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { toast } from 'sonner';
-import { Receipt, Plus, Trash2, X, AlertCircle, Pencil } from 'lucide-react';
+import { Receipt, Plus, Trash2, X, AlertCircle, Pencil, TrendingUp } from 'lucide-react';
 import type { Expense } from '@/lib/salesApi';
 import {
   expensesApi,
   type ExpenseBody,
   type ExpenseCategory,
+  type ExpenseCategorySummary,
   EXPENSE_LABELS,
 } from '@/lib/salesApi';
 
@@ -254,6 +255,59 @@ function DeleteConfirm({
   );
 }
 
+// ── Ranked summary ────────────────────────────────────────────────────────────
+
+function ExpenseSummary() {
+  const { data } = useQuery({
+    queryKey: ['sales', 'expenses', 'summary'],
+    queryFn: () => expensesApi.summary(),
+    staleTime: 30_000,
+  });
+
+  const rows: ExpenseCategorySummary[] = data?.categories ?? [];
+  const grandTotal = data?.total ?? 0;
+
+  if (rows.length === 0) return null;
+
+  return (
+    <div className="card p-4 mb-4">
+      <div className="flex items-center gap-2 mb-3">
+        <TrendingUp size={15} className="text-primary-500" />
+        <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-200">Top Expenses</h2>
+        <span className="ml-auto text-xs text-slate-400">All time · RWF {grandTotal.toLocaleString()}</span>
+      </div>
+      <div className="space-y-2.5">
+        {rows.map((row, i) => {
+          const pct = grandTotal > 0 ? (row.total / grandTotal) * 100 : 0;
+          return (
+            <div key={row.category}>
+              <div className="flex items-center justify-between mb-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-bold text-slate-400 w-4 text-right">{i + 1}</span>
+                  <CategoryBadge cat={row.category} />
+                  <span className="text-[10px] text-slate-400">{row.count} record{row.count !== 1 ? 's' : ''}</span>
+                </div>
+                <div className="text-right">
+                  <span className="text-sm font-semibold text-slate-800 dark:text-slate-200 tabular-nums">
+                    RWF {row.total.toLocaleString()}
+                  </span>
+                  <span className="text-[10px] text-slate-400 ml-1.5">{pct.toFixed(0)}%</span>
+                </div>
+              </div>
+              <div className="h-1.5 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden ml-6">
+                <div
+                  className="h-full bg-primary-500 rounded-full transition-all"
+                  style={{ width: `${pct}%` }}
+                />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export function ExpensesPage() {
@@ -270,25 +324,26 @@ export function ExpensesPage() {
 
   const expenses = data?.expenses ?? [];
   const pages = data?.pages ?? 1;
-
-  // Running total for current page (visual only)
-  const pageTotal = expenses.reduce((s, e) => s + e.amount, 0);
+  const grandTotal = expenses.reduce((s, e) => s + e.amount, 0);
 
   return (
     <div className="p-4 md:p-6 max-w-4xl">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-4">
         <div>
           <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">Expenses</h1>
           <p className="text-xs text-slate-400 mt-0.5">
             {data ? `${data.total} records` : '…'}
-            {expenses.length > 0 && ` · Page total RWF ${pageTotal.toLocaleString()}`}
+            {expenses.length > 0 && ` · RWF ${grandTotal.toLocaleString()} this page`}
           </p>
         </div>
         <button className="btn-primary gap-1.5" onClick={() => setShowAdd(true)}>
           <Plus size={16} /> Record Expense
         </button>
       </div>
+
+      {/* Ranked breakdown */}
+      <ExpenseSummary />
 
       {/* Table */}
       <div className="card overflow-hidden p-0">
