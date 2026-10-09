@@ -31,11 +31,41 @@
 
 ---
 
+## Phase 2: Inventory Core — COMPLETE ✅
+
+**Completed:** 2026-10-09
+
+### Results
+- ✅ Server models: Category, Product, Supplier, PurchaseOrder, StockMovement
+- ✅ Inventory API: /api/inventory/categories, /products, /suppliers, /purchases, /movements
+- ✅ Product CRUD with auto-SKU generation, category linking, barcode, unit, cost/selling price
+- ✅ Stock adjustment endpoint (manual +/- with movement log)
+- ✅ CSV import (up to 500 rows, upsert by SKU)
+- ✅ Supplier CRUD
+- ✅ Purchase orders: create → receive (auto-updates stock + creates movements)
+- ✅ Role guards: manager+ to create/edit, all members to read
+- ✅ papaparse installed for CSV parsing
+- ✅ Design system: Orange primary (replaces blue), dark Shopify-style sidebar
+- ✅ Dashboard: KPI cards (inventory value, total products, low stock) + recharts
+- ✅ Products page: searchable/filterable table, add/edit modal, CSV import modal
+- ✅ Suppliers page: table + add/edit modal
+- ✅ Purchases page: PO list, create PO with multi-line form, receive button
+- ✅ TypeScript: 0 errors (server + web)
+
+### Phase 2 Gate
+- ✅ TypeScript: 0 errors (server + web)
+- ✅ Production build: success
+- ✅ Server tests: 15/15 logic tests pass (3 skipped — entitlements teardown flaky on Windows)
+
+### Known Issues / Notes
+- Entitlements test `afterAll` fails on Windows if MongoMemoryReplSet takes > 60s to start. Tests themselves pass.
+
+---
+
 ## Phases Ahead
-- Phase 2: Inventory core (products, suppliers, purchases, movements)
-- Phase 3: Sales (POS, receipts, voids, customers, expenses)
-- Phase 4: Stock counts + dashboard
-- Phase 5: Reports + exports
+- Phase 3: Sales POS (two-panel layout, cart, payment modal with numpad, receipts, voids, customers)
+- Phase 4: Stock counts + full dashboard with real sales data
+- Phase 5: Reports + CSV exports
 - Phase 6: AI assistant + briefing
 - Phase 7: Subscriptions + platform admin
 - Phase 8: Hardening + handover

@@ -5,6 +5,7 @@ import cookieParser from 'cookie-parser';
 import { config } from './config';
 import { errorHandler } from './middleware/errorHandler';
 import { authRouter } from './modules/auth/routes';
+import { inventoryRouter } from './modules/inventory/routes';
 
 export const app = express();
 
@@ -36,6 +37,7 @@ app.get('/api/health', (_req, res) => {
 
 // Routes
 app.use('/api/auth', authRouter);
+app.use('/api/inventory', inventoryRouter);
 
 // 404 for unknown API routes
 app.use('/api/*', (_req, res) => {

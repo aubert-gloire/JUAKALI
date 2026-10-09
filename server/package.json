@@ -11,6 +11,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@google/generative-ai": "^0.21.0",
+    "@types/papaparse": "^5.5.2",
     "bcryptjs": "^2.4.3",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
@@ -19,9 +21,9 @@
     "helmet": "^8.0.0",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.9.0",
+    "papaparse": "^5.7.0",
     "uuid": "^11.0.3",
-    "zod": "^3.24.1",
-    "@google/generative-ai": "^0.21.0"
+    "zod": "^3.24.1"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
@@ -32,11 +34,11 @@
     "@types/node": "^22.10.0",
     "@types/supertest": "^6.0.2",
     "@types/uuid": "^10.0.0",
+    "@vitest/coverage-v8": "^2.1.8",
     "mongodb-memory-server": "^10.1.2",
     "supertest": "^7.0.0",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2",
-    "vitest": "^2.1.8",
-    "@vitest/coverage-v8": "^2.1.8"
+    "vitest": "^2.1.8"
   }
 }

@@ -9,6 +9,9 @@ import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { AppLayout } from '@/components/AppLayout';
 import { LoginPage } from '@/features/auth/LoginPage';
 import { DashboardPage } from '@/features/dashboard/DashboardPage';
+import { ProductsPage } from '@/features/products/ProductsPage';
+import { SuppliersPage } from '@/features/suppliers/SuppliersPage';
+import { PurchasesPage } from '@/features/purchases/PurchasesPage';
 
 function AppSkeleton() {
   return (
@@ -38,16 +41,17 @@ export default function App() {
             <Route element={<ProtectedRoute />}>
               <Route element={<AppLayout />}>
                 <Route index element={<Navigate to="/dashboard" replace />} />
-                <Route path="/dashboard" element={<DashboardPage />} />
-                <Route path="/sell" element={<PlaceholderPage title="Point of Sale" />} />
-                <Route path="/products" element={<PlaceholderPage title="Products" />} />
-                <Route path="/purchases" element={<PlaceholderPage title="Purchases" />} />
-                <Route path="/expenses" element={<PlaceholderPage title="Expenses" />} />
-                <Route path="/customers" element={<PlaceholderPage title="Customers" />} />
-                <Route path="/reports" element={<PlaceholderPage title="Reports" />} />
-                <Route path="/settings" element={<PlaceholderPage title="Settings" />} />
-                <Route path="/more" element={<PlaceholderPage title="More" />} />
-                <Route path="/ai" element={<PlaceholderPage title="AI Assistant" />} />
+                <Route path="/dashboard"  element={<DashboardPage />} />
+                <Route path="/products"   element={<ProductsPage />} />
+                <Route path="/suppliers"  element={<SuppliersPage />} />
+                <Route path="/purchases"  element={<PurchasesPage />} />
+                <Route path="/sell"       element={<PlaceholderPage title="Point of Sale" />} />
+                <Route path="/expenses"   element={<PlaceholderPage title="Expenses" />} />
+                <Route path="/customers"  element={<PlaceholderPage title="Customers" />} />
+                <Route path="/reports"    element={<PlaceholderPage title="Reports" />} />
+                <Route path="/settings"   element={<PlaceholderPage title="Settings" />} />
+                <Route path="/more"       element={<PlaceholderPage title="More" />} />
+                <Route path="/ai"         element={<PlaceholderPage title="AI Assistant" />} />
               </Route>
             </Route>
 

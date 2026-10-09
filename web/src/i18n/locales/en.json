@@ -40,6 +40,7 @@
     "more": "More",
     "reports": "Reports",
     "purchases": "Purchases",
+    "suppliers": "Suppliers",
     "expenses": "Expenses",
     "customers": "Customers",
     "stock": "Stock",
@@ -52,8 +53,11 @@
     "todayProfit": "Today's Profit",
     "totalExpenses": "Total Expenses",
     "lowStock": "Low Stock Items",
-    "salesChart": "Sales (Last 30 Days)",
-    "topProducts": "Top Products"
+    "inventoryValue": "Inventory Value",
+    "totalProducts": "Total Products",
+    "salesChart": "Sales (Last 7 Days)",
+    "topProducts": "Top Products",
+    "lowStockAlert": "Low Stock Alert"
   },
   "products": {
     "title": "Products",
@@ -69,7 +73,34 @@
     "sellingPrice": "Selling Price",
     "reorderLevel": "Reorder Level",
     "lowStock": "Low Stock",
-    "importCsv": "Import CSV"
+    "importCsv": "Import CSV",
+    "unit": "Unit",
+    "description": "Description",
+    "barcode": "Barcode"
+  },
+  "suppliers": {
+    "title": "Suppliers",
+    "addSupplier": "Add Supplier",
+    "name": "Supplier Name",
+    "phone": "Phone",
+    "email": "Email",
+    "address": "Address",
+    "notes": "Notes"
+  },
+  "purchases": {
+    "title": "Purchases",
+    "newPO": "New Purchase Order",
+    "orderNumber": "PO #",
+    "supplier": "Supplier",
+    "status": "Status",
+    "lines": "Lines",
+    "total": "Total",
+    "receive": "Receive",
+    "draft": "Draft",
+    "ordered": "Ordered",
+    "received": "Received",
+    "partial": "Partial",
+    "cancelled": "Cancelled"
   },
   "sales": {
     "title": "Point of Sale",
