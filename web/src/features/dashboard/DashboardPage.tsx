@@ -12,7 +12,7 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from 'recharts';
-import { Package, TrendingUp, DollarSign, ShoppingCart, Wallet } from 'lucide-react';
+import { Package, TrendingUp, DollarSign, ShoppingCart, Wallet, AlertTriangle, ExternalLink } from 'lucide-react';
 import { statsApi, type SalesStats, type TrendPoint } from '@/lib/salesApi';
 import { clsx } from 'clsx';
 
@@ -299,10 +299,11 @@ export function DashboardPage() {
         {/* Low stock */}
         <div className="lg:col-span-2">
           <SectionCard
-            title="Low Stock Alert"
+            title="Restock Needed"
             action={
               pStats?.lowStock ? (
-                <span className="text-xs font-semibold text-red-500 bg-red-50 dark:bg-red-900/20 px-2 py-0.5 rounded-full">
+                <span className="flex items-center gap-1 text-xs font-semibold text-red-500 bg-red-50 dark:bg-red-900/20 px-2 py-0.5 rounded-full">
+                  <AlertTriangle size={11} />
                   {pStats.lowStock} item{pStats.lowStock !== 1 ? 's' : ''}
                 </span>
               ) : undefined
@@ -311,38 +312,58 @@ export function DashboardPage() {
             {lowStockQ.isLoading ? (
               <div className="space-y-2">
                 {[...Array(4)].map((_, i) => (
-                  <div key={i} className="h-5 bg-slate-100 dark:bg-slate-700 rounded animate-pulse" />
+                  <div key={i} className="h-10 bg-slate-100 dark:bg-slate-700 rounded animate-pulse" />
                 ))}
               </div>
             ) : lowStockItems.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-40 text-slate-400">
                 <Package size={32} className="mb-2 opacity-30" />
                 <p className="text-sm">
-                  {pStats?.total === 0 ? 'No products yet' : 'All stock levels healthy'}
+                  {pStats?.total === 0 ? 'No products yet' : 'All stock levels healthy ✓'}
                 </p>
               </div>
             ) : (
-              <div className="space-y-2.5">
+              <div className="space-y-2">
                 {lowStockItems.map((p) => {
-                  const pct = p.reorderLevel > 0 ? Math.min(100, (p.stockQty / p.reorderLevel) * 100) : 100;
                   const isOut = p.stockQty === 0;
                   return (
-                    <div key={p._id} className="flex items-center gap-3">
+                    <div
+                      key={p._id}
+                      className={clsx(
+                        'flex items-center gap-2 rounded-lg px-3 py-2',
+                        isOut
+                          ? 'bg-red-50 dark:bg-red-900/20'
+                          : 'bg-amber-50 dark:bg-amber-900/10',
+                      )}
+                    >
+                      <AlertTriangle
+                        size={13}
+                        className={isOut ? 'text-red-500 flex-shrink-0' : 'text-amber-500 flex-shrink-0'}
+                      />
                       <div className="flex-1 min-w-0">
                         <p className="text-xs font-medium text-slate-800 dark:text-slate-200 truncate">{p.name}</p>
-                        <div className="mt-1 h-1.5 rounded-full bg-slate-100 dark:bg-slate-700">
-                          <div
-                            className={`h-full rounded-full transition-all ${isOut ? 'bg-red-500' : 'bg-amber-400'}`}
-                            style={{ width: `${pct}%` }}
-                          />
-                        </div>
+                        <p className={clsx('text-[10px] tabular-nums', isOut ? 'text-red-500 font-semibold' : 'text-amber-600')}>
+                          {isOut ? 'OUT OF STOCK' : `${p.stockQty} left`}
+                          {!isOut && p.reorderLevel > 0 && (
+                            <span className="text-slate-400"> · min {p.reorderLevel}</span>
+                          )}
+                        </p>
                       </div>
-                      <span className={`text-xs font-bold tabular-nums ${isOut ? 'text-red-600' : 'text-amber-600'}`}>
-                        {p.stockQty}
-                      </span>
+                      <a
+                        href="#/purchases"
+                        className="text-[10px] font-medium text-primary-600 dark:text-primary-400 hover:underline flex-shrink-0 flex items-center gap-0.5"
+                        title="Create purchase order"
+                      >
+                        Order <ExternalLink size={9} />
+                      </a>
                     </div>
                   );
                 })}
+                {(lowStockQ.data?.total ?? 0) > lowStockItems.length && (
+                  <p className="text-[10px] text-slate-400 text-center pt-1">
+                    +{(lowStockQ.data!.total) - lowStockItems.length} more — check Products page
+                  </p>
+                )}
               </div>
             )}
           </SectionCard>

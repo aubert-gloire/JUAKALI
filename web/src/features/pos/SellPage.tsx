@@ -4,9 +4,10 @@ import { toast } from 'sonner';
 import {
   Search, X, Plus, Minus, Trash2, ShoppingCart,
   Banknote, Smartphone, CreditCard, AlertCircle, CheckCircle2, Tag,
+  Printer, MessageCircle, CheckCircle,
 } from 'lucide-react';
 import { productsApi, categoriesApi, type Product, type Category } from '@/lib/inventoryApi';
-import { salesApi, customersApi, type PaymentMethod, type Customer, PAYMENT_LABELS } from '@/lib/salesApi';
+import { salesApi, customersApi, type PaymentMethod, type Sale, type Customer, PAYMENT_LABELS } from '@/lib/salesApi';
 import { clsx } from 'clsx';
 
 // ── Cart types ────────────────────────────────────────────────────────────────
@@ -301,14 +302,134 @@ function PaymentModal({
   );
 }
 
-// ── Receipt toast ─────────────────────────────────────────────────────────────
+// ── Receipt modal ─────────────────────────────────────────────────────────────
 
-function showReceipt(sale: { saleNumber: string; total: number; change?: number }) {
-  toast.success(
-    `Sale ${sale.saleNumber} — RWF ${sale.total.toLocaleString()}${
-      sale.change ? ` · Change: RWF ${sale.change.toLocaleString()}` : ''
-    }`,
-    { duration: 5000 },
+function ReceiptModal({ sale, onClose }: { sale: Sale; onClose: () => void }) {
+  const shopName = 'JUAKALI STORE'; // shown on receipt header
+
+  const handlePrint = () => window.print();
+
+  const handleWhatsApp = () => {
+    const lines = [
+      `*${shopName}*`,
+      `Receipt #${sale.saleNumber}`,
+      `Date: ${new Date(sale.createdAt).toLocaleDateString('en-RW', { day: 'numeric', month: 'short', year: 'numeric' })}`,
+      ``,
+      ...sale.items.map(
+        (i) => `• ${i.productName} x${i.qty}  RWF ${i.totalPrice.toLocaleString()}`
+      ),
+      ``,
+      sale.discountAmount > 0 ? `Subtotal: RWF ${sale.subtotal.toLocaleString()}` : '',
+      sale.discountAmount > 0 ? `Discount: -RWF ${sale.discountAmount.toLocaleString()}` : '',
+      `*Total: RWF ${sale.total.toLocaleString()}*`,
+      `Payment: ${PAYMENT_LABELS[sale.paymentMethod]}`,
+      sale.change ? `Change: RWF ${sale.change.toLocaleString()}` : '',
+    ].filter(Boolean).join('\n');
+
+    window.open(`https://wa.me/?text=${encodeURIComponent(lines)}`, '_blank');
+  };
+
+  return (
+    <>
+      {/* Print styles — only the receipt div shows when printing */}
+      <style>{`@media print { body > * { display: none !important; } #receipt-print { display: block !important; position: fixed; inset: 0; z-index: 9999; background: white; padding: 24px; } }`}</style>
+
+      <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+        <div className="absolute inset-0 bg-black/50" onClick={onClose} />
+        <div
+          id="receipt-print"
+          className="relative bg-white dark:bg-slate-900 rounded-t-2xl sm:rounded-xl w-full sm:max-w-sm shadow-2xl"
+        >
+          {/* Success header */}
+          <div className="flex flex-col items-center pt-6 pb-4 px-5 border-b border-slate-100 dark:border-slate-700">
+            <div className="h-12 w-12 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center mb-2">
+              <CheckCircle size={24} className="text-green-600" />
+            </div>
+            <h2 className="font-bold text-slate-900 dark:text-slate-100 text-lg">{shopName}</h2>
+            <p className="text-xs text-slate-400 mt-0.5">
+              {new Date(sale.createdAt).toLocaleDateString('en-RW', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}
+            </p>
+            <p className="text-xs font-mono text-slate-500 mt-0.5">#{sale.saleNumber}</p>
+          </div>
+
+          {/* Items */}
+          <div className="px-5 py-3 space-y-1.5 max-h-52 overflow-y-auto">
+            {sale.items.map((item) => (
+              <div key={item.productId} className="flex justify-between items-baseline text-sm">
+                <span className="text-slate-700 dark:text-slate-300 truncate mr-2">
+                  {item.productName}
+                  <span className="text-slate-400 text-xs ml-1">×{item.qty}</span>
+                </span>
+                <span className="font-medium text-slate-800 dark:text-slate-200 tabular-nums flex-shrink-0">
+                  {item.totalPrice.toLocaleString()}
+                </span>
+              </div>
+            ))}
+          </div>
+
+          {/* Totals */}
+          <div className="px-5 py-3 border-t border-dashed border-slate-200 dark:border-slate-700 space-y-1">
+            {sale.discountAmount > 0 && (
+              <>
+                <div className="flex justify-between text-xs text-slate-500">
+                  <span>Subtotal</span>
+                  <span>{sale.subtotal.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between text-xs text-green-600">
+                  <span>Discount</span>
+                  <span>-{sale.discountAmount.toLocaleString()}</span>
+                </div>
+              </>
+            )}
+            <div className="flex justify-between font-bold text-slate-900 dark:text-slate-100">
+              <span>Total (RWF)</span>
+              <span className="text-lg tabular-nums">{sale.total.toLocaleString()}</span>
+            </div>
+            <div className="flex justify-between text-xs text-slate-500">
+              <span>Payment</span>
+              <span>{PAYMENT_LABELS[sale.paymentMethod]}</span>
+            </div>
+            {sale.change != null && sale.change > 0 && (
+              <div className="flex justify-between text-xs text-slate-500">
+                <span>Change</span>
+                <span>{sale.change.toLocaleString()}</span>
+              </div>
+            )}
+            {sale.customerName && (
+              <div className="flex justify-between text-xs text-slate-500">
+                <span>Customer</span>
+                <span>{sale.customerName}</span>
+              </div>
+            )}
+          </div>
+
+          {/* Actions */}
+          <div className="px-5 pb-6 pt-3 grid grid-cols-3 gap-2">
+            <button
+              onClick={handleWhatsApp}
+              className="flex flex-col items-center gap-1 py-2.5 rounded-xl bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 hover:bg-green-100 transition-colors"
+            >
+              <MessageCircle size={18} />
+              <span className="text-[10px] font-medium">WhatsApp</span>
+            </button>
+            <button
+              onClick={handlePrint}
+              className="flex flex-col items-center gap-1 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 transition-colors"
+            >
+              <Printer size={18} />
+              <span className="text-[10px] font-medium">Print</span>
+            </button>
+            <button
+              onClick={onClose}
+              className="flex flex-col items-center gap-1 py-2.5 rounded-xl bg-primary-600 text-white hover:bg-primary-700 transition-colors"
+            >
+              <CheckCircle2 size={18} />
+              <span className="text-[10px] font-medium">Done</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </>
   );
 }
 
@@ -329,6 +450,7 @@ export function SellPage() {
   const [customerSearch, setCustomerSearch] = useState('');
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [showMobileCart, setShowMobileCart] = useState(false);
+  const [receiptSale, setReceiptSale] = useState<Sale | null>(null);
 
   // Data
   const catsQ = useQuery({
@@ -353,7 +475,7 @@ export function SellPage() {
   const completeSale = useMutation({
     mutationFn: salesApi.complete,
     onSuccess: (data) => {
-      showReceipt(data.sale);
+      setReceiptSale(data.sale);
       setCart([]);
       setDiscount(0);
       setSelectedCustomer(null);
@@ -709,6 +831,14 @@ export function SellPage() {
         onClose={() => setShowPayment(false)}
         isPending={completeSale.isPending}
       />
+
+      {/* Receipt modal */}
+      {receiptSale && (
+        <ReceiptModal
+          sale={receiptSale}
+          onClose={() => setReceiptSale(null)}
+        />
+      )}
     </div>
   );
 }
