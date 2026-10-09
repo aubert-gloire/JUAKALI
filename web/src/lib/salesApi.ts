@@ -109,12 +109,21 @@ export type CompleteSaleBody = {
   customerId?: string;
   customerName?: string;
   notes?: string;
+  creditDueDate?: string;
+};
+
+export type SalesListParams = {
+  page?: number;
+  status?: string;
+  paymentMethod?: string;
+  from?: string;
+  to?: string;
 };
 
 export const salesApi = {
-  list: (params?: { page?: number; status?: string }) =>
+  list: (params?: SalesListParams) =>
     api.get<{ sales: Sale[]; total: number; page: number; pages: number }>(
-      `/sales${qs(params)}`,
+      `/sales${qs(params as Record<string, string | number | boolean | undefined>)}`,
     ),
   get: (id: string) => api.get<{ sale: Sale }>(`/sales/${id}`),
   complete: (body: CompleteSaleBody) => api.post<{ sale: Sale }>('/sales', body),

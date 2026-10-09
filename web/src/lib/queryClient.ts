@@ -9,7 +9,7 @@ export const queryClient = new QueryClient({
         if ((error as Error & { code?: string }).code === 'FORBIDDEN') return false;
         return failureCount < 2;
       },
-      refetchOnWindowFocus: true,
+      refetchOnWindowFocus: false,
     },
     mutations: {
       retry: false,

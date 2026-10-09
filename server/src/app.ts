@@ -7,6 +7,7 @@ import { errorHandler } from './middleware/errorHandler';
 import { authRouter } from './modules/auth/routes';
 import { inventoryRouter } from './modules/inventory/routes';
 import { salesRouter } from './modules/sales/routes';
+import { creditsRouter } from './modules/credits/routes';
 
 export const app = express();
 
@@ -40,6 +41,7 @@ app.get('/api/health', (_req, res) => {
 app.use('/api/auth', authRouter);
 app.use('/api/inventory', inventoryRouter);
 app.use('/api/sales', salesRouter);
+app.use('/api/credits', creditsRouter);
 
 // 404 for unknown API routes
 app.use('/api/*', (_req, res) => {

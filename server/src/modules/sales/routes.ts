@@ -11,6 +11,7 @@ import { Sale } from '../../models/Sale';
 import { StockMovement } from '../../models/StockMovement';
 import { Customer } from '../../models/Customer';
 import { Expense } from '../../models/Expense';
+import { CreditAccount } from '../../models/CreditAccount';
 import { CompleteSaleSchema, VoidSaleSchema, CustomerSchema, ExpenseSchema } from './validation';
 
 export const salesRouter = Router();
@@ -145,13 +146,24 @@ salesRouter.get(
 salesRouter.get(
   '/',
   asyncHandler(async (req, res) => {
-    const { page = '1', limit = '30', status } = req.query as Record<string, string>;
+    const { page = '1', limit = '30', status, paymentMethod, from, to } = req.query as Record<string, string>;
     const pageNum = Math.max(1, parseInt(page));
     const limitNum = Math.min(100, parseInt(limit) || 30);
     const skip = (pageNum - 1) * limitNum;
 
     const filter: Record<string, unknown> = { ...shopFilter(req) };
-    if (status) filter.status = status;
+    if (status && status !== 'all') filter.status = status;
+    if (paymentMethod && paymentMethod !== 'all') filter.paymentMethod = paymentMethod;
+    if (from || to) {
+      const dateFilter: Record<string, Date> = {};
+      if (from) dateFilter.$gte = new Date(from);
+      if (to) {
+        const toDate = new Date(to);
+        toDate.setHours(23, 59, 59, 999);
+        dateFilter.$lte = toDate;
+      }
+      filter.createdAt = dateFilter;
+    }
 
     const [sales, total] = await Promise.all([
       Sale.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limitNum).lean(),
@@ -254,6 +266,32 @@ salesRouter.post(
     // Update customer total spent
     if (sale.customerId) {
       await Customer.updateOne({ _id: sale.customerId }, { $inc: { totalSpent: total } });
+    }
+
+    // Auto-create credit account for credit sales
+    if (body.paymentMethod === 'credit') {
+      const customer = body.customerId
+        ? await Customer.findById(body.customerId).lean()
+        : null;
+
+      const installments = body.creditDueDate
+        ? [{ dueDate: new Date(body.creditDueDate), amount: total, paidAmount: 0, status: 'pending' as const }]
+        : [];
+
+      await CreditAccount.create({
+        shopId: req.tenant!.shopId,
+        saleId: sale._id,
+        saleNumber: sale.saleNumber,
+        customerId: sale.customerId,
+        customerName: sale.customerName ?? 'Walk-in Customer',
+        customerPhone: customer?.phone,
+        totalAmount: total,
+        amountPaid: 0,
+        balance: total,
+        status: 'active',
+        installments,
+        createdBy: req.user!.id,
+      });
     }
 
     res.status(201).json({ sale });

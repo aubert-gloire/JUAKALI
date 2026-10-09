@@ -86,11 +86,12 @@ function PaymentModal({
   total: number;
   paymentMethod: PaymentMethod;
   onChangeMethod: (m: PaymentMethod) => void;
-  onConfirm: (tendered?: number) => void;
+  onConfirm: (tendered?: number, creditDueDate?: string) => void;
   onClose: () => void;
   isPending: boolean;
 }) {
   const [tendered, setTendered] = useState('');
+  const [creditDueDate, setCreditDueDate] = useState('');
 
   if (!open) return null;
 
@@ -214,13 +215,27 @@ function PaymentModal({
 
         {/* Non-cash confirmation */}
         {paymentMethod !== 'cash' && (
-          <div className="p-4 text-center">
-            <p className="text-sm text-slate-500">
-              Confirm {PAYMENT_LABELS[paymentMethod]} payment of
-            </p>
-            <p className="text-2xl font-bold text-slate-900 dark:text-slate-100 mt-1">
-              RWF {total.toLocaleString()}
-            </p>
+          <div className="p-4 space-y-3">
+            <div className="text-center">
+              <p className="text-sm text-slate-500">
+                Confirm {PAYMENT_LABELS[paymentMethod]} payment of
+              </p>
+              <p className="text-2xl font-bold text-slate-900 dark:text-slate-100 mt-1">
+                RWF {total.toLocaleString()}
+              </p>
+            </div>
+            {paymentMethod === 'credit' && (
+              <div>
+                <label className="text-xs text-slate-500 block mb-1">First payment due (optional)</label>
+                <input
+                  type="date"
+                  className="input text-sm"
+                  value={creditDueDate}
+                  min={new Date().toISOString().slice(0, 10)}
+                  onChange={(e) => setCreditDueDate(e.target.value)}
+                />
+              </div>
+            )}
           </div>
         )}
 
@@ -228,7 +243,10 @@ function PaymentModal({
         <div className="p-3 pt-0">
           <button
             onClick={() =>
-              onConfirm(paymentMethod === 'cash' && tenderedNum > 0 ? tenderedNum : undefined)
+              onConfirm(
+                paymentMethod === 'cash' && tenderedNum > 0 ? tenderedNum : undefined,
+                paymentMethod === 'credit' && creditDueDate ? creditDueDate : undefined,
+              )
             }
             disabled={isPending || !canConfirm}
             className="btn-primary w-full text-base py-3 disabled:opacity-50"
@@ -362,7 +380,7 @@ export function SellPage() {
   const removeFromCart = (productId: string) =>
     setCart((prev) => prev.filter((l) => l.product._id !== productId));
 
-  const handleConfirmPayment = (tendered?: number) => {
+  const handleConfirmPayment = (tendered?: number, creditDueDate?: string) => {
     completeSale.mutate({
       items: cart.map((l) => ({ productId: l.product._id, qty: l.qty })),
       discountAmount: discountAmt,
@@ -370,6 +388,7 @@ export function SellPage() {
       amountTendered: tendered,
       customerId: selectedCustomer?._id,
       customerName: selectedCustomer?.name,
+      creditDueDate,
     });
   };
 

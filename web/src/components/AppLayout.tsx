@@ -1,7 +1,10 @@
+import { useState, useRef, useEffect } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { useQuery } from '@tanstack/react-query';
 import { useAuth, useLogout } from '@/hooks/useAuth';
 import { OfflineBanner } from './OfflineBanner';
+import { creditsApi } from '@/lib/creditsApi';
 import {
   LayoutDashboard,
   ShoppingCart,
@@ -17,6 +20,11 @@ import {
   ChevronRight,
   Receipt,
   Truck,
+  Bell,
+  AlertCircle,
+  Clock,
+  CreditCard,
+  ClipboardList,
 } from 'lucide-react';
 import { clsx } from 'clsx';
 
@@ -43,15 +51,126 @@ const NAV_GROUPS = [
     ],
   },
   {
-    label: 'Business',
+    label: 'Sales',
     items: [
-      { to: '/customers', label: 'nav.customers', icon: Users },
-      { to: '/expenses',  label: 'nav.expenses',  icon: Receipt },
-      { to: '/reports',   label: 'nav.reports',   icon: BarChart3 },
-      { to: '/settings',  label: 'nav.settings',  icon: Settings },
+      { to: '/sales-history', label: 'nav.salesHistory', icon: ClipboardList },
+      { to: '/credits',       label: 'nav.credits',      icon: CreditCard },
+      { to: '/customers',     label: 'nav.customers',    icon: Users },
+      { to: '/expenses',      label: 'nav.expenses',     icon: Receipt },
+    ],
+  },
+  {
+    label: 'Reports',
+    items: [
+      { to: '/reports',  label: 'nav.reports',  icon: BarChart3 },
+      { to: '/settings', label: 'nav.settings', icon: Settings },
     ],
   },
 ];
+
+function NotificationBell() {
+  const navigate = useNavigate();
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  const { data } = useQuery({
+    queryKey: ['credits', 'reminders'],
+    queryFn: creditsApi.reminders,
+    staleTime: 60_000,
+    refetchInterval: 5 * 60_000,
+  });
+
+  const count = (data?.overdueCount ?? 0) + (data?.todayCount ?? 0);
+
+  useEffect(() => {
+    function handler(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen((p) => !p)}
+        className="relative p-2 rounded-lg text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+      >
+        <Bell size={18} />
+        {count > 0 && (
+          <span className="absolute -top-0.5 -right-0.5 h-4 w-4 text-[9px] font-bold bg-red-500 text-white rounded-full flex items-center justify-center">
+            {count > 9 ? '9+' : count}
+          </span>
+        )}
+      </button>
+
+      {open && (
+        <div className="absolute right-0 top-full mt-1 w-80 bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-slate-200 dark:border-slate-700 z-50 overflow-hidden">
+          <div className="px-4 py-3 border-b border-slate-100 dark:border-slate-700 flex items-center justify-between">
+            <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Payment Reminders</p>
+            {count > 0 && (
+              <span className="text-[10px] font-bold bg-red-100 text-red-600 px-1.5 py-0.5 rounded-full">
+                {count} urgent
+              </span>
+            )}
+          </div>
+
+          <div className="max-h-72 overflow-y-auto">
+            {!data || data.items.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-8 text-slate-400 gap-2">
+                <Bell size={24} className="opacity-30" />
+                <p className="text-xs">No upcoming payments</p>
+              </div>
+            ) : (
+              data.items.map((item, i) => (
+                <button
+                  key={i}
+                  onClick={() => { navigate('/credits'); setOpen(false); }}
+                  className="w-full text-left px-4 py-3 border-b border-slate-50 dark:border-slate-700/50 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors"
+                >
+                  <div className="flex items-start gap-2.5">
+                    {item.type === 'overdue' ? (
+                      <AlertCircle size={14} className="text-red-500 mt-0.5 flex-shrink-0" />
+                    ) : (
+                      <Clock size={14} className="text-amber-500 mt-0.5 flex-shrink-0" />
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-medium text-slate-800 dark:text-slate-200 truncate">
+                        {item.customerName}
+                        {item.customerPhone && <span className="text-slate-400 font-normal"> · {item.customerPhone}</span>}
+                      </p>
+                      <p className="text-[10px] text-slate-500 mt-0.5">
+                        {item.saleNumber} · RWF {item.amount.toLocaleString()}
+                      </p>
+                    </div>
+                    <div className="text-right flex-shrink-0">
+                      <p className={clsx(
+                        'text-[10px] font-semibold',
+                        item.type === 'overdue' ? 'text-red-500' : 'text-amber-500',
+                      )}>
+                        {item.type === 'overdue' ? 'OVERDUE' : item.type === 'today' ? 'DUE TODAY' : 'SOON'}
+                      </p>
+                      <p className="text-[10px] text-slate-400">{new Date(item.dueDate).toLocaleDateString('en-RW', { day: 'numeric', month: 'short' })}</p>
+                    </div>
+                  </div>
+                </button>
+              ))
+            )}
+          </div>
+
+          {(data?.items.length ?? 0) > 0 && (
+            <button
+              onClick={() => { navigate('/credits'); setOpen(false); }}
+              className="w-full px-4 py-2.5 text-xs font-medium text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors border-t border-slate-100 dark:border-slate-700"
+            >
+              View all credit accounts →
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export function AppLayout() {
   const { t } = useTranslation();
@@ -156,6 +275,10 @@ export function AppLayout() {
 
       {/* Main */}
       <div className="flex-1 flex flex-col min-w-0">
+        {/* Top bar with notification bell */}
+        <div className="flex items-center justify-end px-4 py-2 border-b border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 md:flex hidden">
+          <NotificationBell />
+        </div>
         <main className="flex-1 overflow-y-auto pb-20 md:pb-0">
           <Outlet />
         </main>

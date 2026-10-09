@@ -16,6 +16,7 @@ export { StockMovement } from './StockMovement';
 export { Sale } from './Sale';
 export { Customer } from './Customer';
 export { Expense } from './Expense';
+export { CreditAccount } from './CreditAccount';
 
 export type { IOrganization } from './Organization';
 export type { IShop } from './Shop';
@@ -34,3 +35,4 @@ export type { IStockMovement, MovementType } from './StockMovement';
 export type { ISale, ISaleItem, PaymentMethod, SaleStatus } from './Sale';
 export type { ICustomer } from './Customer';
 export type { IExpense, ExpenseCategory } from './Expense';
+export type { ICreditAccount, IInstallment, CreditStatus, InstallmentStatus } from './CreditAccount';

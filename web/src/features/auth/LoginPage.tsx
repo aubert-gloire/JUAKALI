@@ -1,5 +1,4 @@
-import { useEffect } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, Navigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -30,10 +29,6 @@ export function LoginPage() {
     formState: { errors, isSubmitting },
   } = useForm<LoginForm>({ resolver: zodResolver(schema) });
 
-  useEffect(() => {
-    if (auth) navigate(from, { replace: true });
-  }, [auth, from, navigate]);
-
   if (authLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center">
@@ -41,6 +36,8 @@ export function LoginPage() {
       </div>
     );
   }
+
+  if (auth) return <Navigate to={from} replace />;
 
   const onSubmit = async (data: LoginForm) => {
     try {

@@ -43,6 +43,8 @@
     "suppliers": "Suppliers",
     "expenses": "Expenses",
     "customers": "Customers",
+    "salesHistory": "Sales History",
+    "credits": "Credits",
     "stock": "Stock",
     "settings": "Settings",
     "aiAssistant": "AI Assistant"

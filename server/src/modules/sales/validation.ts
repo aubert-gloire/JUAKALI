@@ -13,6 +13,8 @@ export const CompleteSaleSchema = z.object({
   customerId: z.string().optional(),
   customerName: z.string().optional(),
   notes: z.string().optional(),
+  // Credit sales: optional first installment due date
+  creditDueDate: z.string().optional(),
 });
 
 export const VoidSaleSchema = z.object({

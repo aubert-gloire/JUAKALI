@@ -15,6 +15,8 @@ import { PurchasesPage } from '@/features/purchases/PurchasesPage';
 import { SellPage } from '@/features/pos/SellPage';
 import { CustomersPage } from '@/features/customers/CustomersPage';
 import { ExpensesPage } from '@/features/expenses/ExpensesPage';
+import { SalesHistoryPage } from '@/features/sales/SalesHistoryPage';
+import { CreditsPage } from '@/features/credits/CreditsPage';
 
 function AppSkeleton() {
   return (
@@ -51,6 +53,8 @@ export default function App() {
                 <Route path="/sell"       element={<SellPage />} />
                 <Route path="/expenses"   element={<ExpensesPage />} />
                 <Route path="/customers"  element={<CustomersPage />} />
+                <Route path="/sales-history" element={<SalesHistoryPage />} />
+                <Route path="/credits"    element={<CreditsPage />} />
                 <Route path="/reports"    element={<PlaceholderPage title="Reports" />} />
                 <Route path="/settings"   element={<PlaceholderPage title="Settings" />} />
                 <Route path="/more"       element={<PlaceholderPage title="More" />} />

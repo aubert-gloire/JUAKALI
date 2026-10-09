@@ -41,8 +41,8 @@ class ApiClient {
 
         return retryRes.json() as Promise<T>;
       } else {
-        // Refresh failed — user needs to log in
-        window.location.href = '/login';
+        // Refresh failed — throw so React Query marks the query as error
+        // ProtectedRoute will redirect to /login; avoid hard reload on login page
         throw new Error('Session expired');
       }
     }
