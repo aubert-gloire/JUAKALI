@@ -10,6 +10,8 @@ import {
   changePasswordSchema,
   inviteUserSchema,
   resetStaffPasswordSchema,
+  updateRoleSchema,
+  updateShopSchema,
 } from './validation';
 import {
   loginUser,
@@ -19,6 +21,10 @@ import {
   inviteUser,
   resetStaffPassword,
   getShopUsers,
+  getShopDetails,
+  updateShop,
+  updateStaffRole,
+  deactivateStaff,
 } from './service';
 import { Errors } from '../../utils/errors';
 
@@ -166,5 +172,86 @@ authRouter.get(
   asyncHandler(async (req, res) => {
     const users = await getShopUsers(req.tenant!.shopId);
     res.json({ users });
+  }),
+);
+
+// PATCH /api/auth/users/:membershipId/role — change role (owner only)
+authRouter.patch(
+  '/users/:membershipId/role',
+  requireAuth,
+  requireTenant,
+  requireRole('owner'),
+  asyncHandler(async (req, res) => {
+    const input = updateRoleSchema.safeParse(req.body);
+    if (!input.success) throw Errors.validation(input.error.issues[0].message);
+
+    const membership = await updateStaffRole(
+      String(req.params.membershipId),
+      input.data.role,
+      req.tenant!.shopId,
+      req.user!.id.toString(),
+    );
+    res.json({ membership });
+  }),
+);
+
+// PATCH /api/auth/users/:membershipId/activate — activate (owner only)
+authRouter.patch(
+  '/users/:membershipId/activate',
+  requireAuth,
+  requireTenant,
+  requireRole('owner'),
+  asyncHandler(async (req, res) => {
+    const result = await deactivateStaff(
+      String(req.params.membershipId),
+      req.tenant!.shopId,
+      req.user!.id.toString(),
+      true,
+    );
+    res.json(result);
+  }),
+);
+
+// DELETE /api/auth/users/:membershipId — deactivate (owner only)
+authRouter.delete(
+  '/users/:membershipId',
+  requireAuth,
+  requireTenant,
+  requireRole('owner'),
+  asyncHandler(async (req, res) => {
+    const result = await deactivateStaff(
+      String(req.params.membershipId),
+      req.tenant!.shopId,
+      req.user!.id.toString(),
+      false,
+    );
+    res.json(result);
+  }),
+);
+
+// GET /api/auth/shop — get shop details (manager+)
+authRouter.get(
+  '/shop',
+  requireAuth,
+  requireTenant,
+  requireRole('manager'),
+  asyncHandler(async (req, res) => {
+    const shop = await getShopDetails(req.tenant!.shopId);
+    res.json({ shop });
+  }),
+);
+
+// PATCH /api/auth/shop — update shop (owner only)
+authRouter.patch(
+  '/shop',
+  requireAuth,
+  requireTenant,
+  requireRole('owner'),
+  asyncHandler(async (req, res) => {
+    const input = updateShopSchema.safeParse(req.body);
+    if (!input.success) throw Errors.validation(input.error.issues[0].message);
+
+    const shop = await updateShop(req.tenant!.shopId, input.data);
+    res.json({ shop });
   }),
 );

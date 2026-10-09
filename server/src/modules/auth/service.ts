@@ -181,3 +181,53 @@ export async function getShopUsers(shopId: Types.ObjectId) {
 export async function getShopDetails(shopId: Types.ObjectId) {
   return Shop.findById(shopId).lean();
 }
+
+export async function updateShop(shopId: Types.ObjectId, data: Partial<import('./validation').UpdateShopInput>) {
+  const shop = await Shop.findByIdAndUpdate(shopId, { $set: data }, { new: true });
+  if (!shop) throw Errors.notFound('Shop');
+  return shop;
+}
+
+export async function updateStaffRole(
+  membershipId: string,
+  role: 'manager' | 'cashier',
+  shopId: Types.ObjectId,
+  requestingUserId: string,
+) {
+  const membership = await Membership.findOne({ _id: membershipId, shopId });
+  if (!membership) throw Errors.notFound('Membership');
+
+  // Cannot demote yourself
+  if (membership.userId.toString() === requestingUserId) {
+    throw Errors.forbidden('You cannot change your own role');
+  }
+  // Cannot change another owner
+  if (membership.role === 'owner') {
+    throw Errors.forbidden('Cannot change role of another owner');
+  }
+
+  membership.role = role;
+  await membership.save();
+  return membership;
+}
+
+export async function deactivateStaff(
+  membershipId: string,
+  shopId: Types.ObjectId,
+  requestingUserId: string,
+  activate = false,
+) {
+  const membership = await Membership.findOne({ _id: membershipId, shopId }).populate<{ userId: IUser }>('userId');
+  if (!membership) throw Errors.notFound('Membership');
+
+  const user = membership.userId as IUser;
+  if (user._id.toString() === requestingUserId) {
+    throw Errors.forbidden('You cannot deactivate your own account');
+  }
+  if (membership.role === 'owner') {
+    throw Errors.forbidden('Cannot deactivate another owner');
+  }
+
+  await User.updateOne({ _id: user._id }, { $set: { isActive: activate } });
+  return { ok: true };
+}

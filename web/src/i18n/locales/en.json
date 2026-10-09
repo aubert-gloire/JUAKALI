@@ -119,6 +119,19 @@
     "discount": "Discount",
     "total": "Total"
   },
+  "reports": {
+    "title": "Reports",
+    "overview": "Overview",
+    "products": "Products",
+    "customers": "Customers",
+    "expenses": "Expenses"
+  },
+  "settings": {
+    "title": "Settings",
+    "shopProfile": "Shop Profile",
+    "staffAccess": "Staff & Access",
+    "myAccount": "My Account"
+  },
   "offline": {
     "banner": "You are offline. Some features are unavailable.",
     "reconnected": "You are back online."
