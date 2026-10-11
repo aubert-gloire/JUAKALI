@@ -49,3 +49,18 @@ export function useChangePassword() {
       api.post('/auth/change-password', data),
   });
 }
+
+export function useRegister() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: {
+      name: string;
+      email: string;
+      password: string;
+      shopName: string;
+      shopLocation: string;
+      shopPhone?: string;
+    }) => api.post<{ user: AuthUser }>('/auth/register', data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['auth', 'me'] }),
+  });
+}

@@ -2,19 +2,118 @@ import bcrypt from 'bcryptjs';
 import { User } from '../../models/User';
 import { Membership } from '../../models/Membership';
 import { Shop } from '../../models/Shop';
+import { Organization } from '../../models/Organization';
+import { AccessToken } from '../../models/AccessToken';
+import { config } from '../../config';
 import { Errors } from '../../utils/errors';
 import {
   signAccessToken,
   signRefreshToken,
   verifyRefreshToken,
 } from '../../middleware/auth';
-import type { LoginInput, ChangePasswordInput, InviteUserInput } from './validation';
+import type { LoginInput, RegisterInput, ChangePasswordInput, InviteUserInput } from './validation';
 import type { IUser } from '../../models/User';
 import type { Types } from 'mongoose';
 
 const MAX_FAILED_ATTEMPTS = 5;
 const LOCK_DURATION_MS = 15 * 60 * 1000; // 15 minutes
 const BCRYPT_ROUNDS = 12;
+
+export async function registerUser(input: RegisterInput) {
+  const exists = await User.findOne({ email: input.email.toLowerCase() });
+  if (exists) throw Errors.conflict('An account with this email already exists');
+
+  const hash = await bcrypt.hash(input.password, BCRYPT_ROUNDS);
+
+  const user = await User.create({
+    name: input.name,
+    email: input.email.toLowerCase(),
+    passwordHash: hash,
+    isActive: true,
+  });
+
+  const org = await Organization.create({
+    name: input.shopName,
+    ownerUserId: user._id,
+  });
+
+  const trialEndsAt = new Date(Date.now() + config.TRIAL_DAYS * 86_400_000);
+
+  const shop = await Shop.create({
+    organizationId: org._id,
+    name: input.shopName,
+    location: input.shopLocation,
+    phone: input.shopPhone ?? '',
+    currency: 'RWF',
+    trialEndsAt,
+    plan: 'trial',
+  });
+
+  await Membership.create({
+    userId: user._id,
+    organizationId: org._id,
+    shopId: shop._id,
+    role: 'owner',
+  });
+
+  const accessToken = signAccessToken(user);
+  const refreshToken = signRefreshToken(user._id.toString());
+
+  return { user, accessToken, refreshToken };
+}
+
+export async function getSubscriptionStatus(shopId: Types.ObjectId) {
+  const shop = await Shop.findById(shopId).select('trialEndsAt accessExpiry plan').lean();
+  if (!shop) throw Errors.notFound('Shop');
+
+  if (!config.BILLING_ENABLED) {
+    return { status: 'active' as const, plan: 'unlimited', daysLeft: 9999 };
+  }
+
+  const now = new Date();
+
+  if (shop.accessExpiry && shop.accessExpiry > now) {
+    const daysLeft = Math.ceil((shop.accessExpiry.getTime() - now.getTime()) / 86_400_000);
+    return { status: 'active' as const, plan: shop.plan ?? 'active', daysLeft, accessExpiry: shop.accessExpiry };
+  }
+
+  if (shop.trialEndsAt && shop.trialEndsAt > now) {
+    const daysLeft = Math.ceil((shop.trialEndsAt.getTime() - now.getTime()) / 86_400_000);
+    return { status: 'trialing' as const, plan: 'trial', daysLeft, trialEndsAt: shop.trialEndsAt };
+  }
+
+  if (shop.trialEndsAt) {
+    const graceEnd = new Date(shop.trialEndsAt.getTime() + config.GRACE_DAYS * 86_400_000);
+    if (graceEnd > now) {
+      const graceDaysLeft = Math.ceil((graceEnd.getTime() - now.getTime()) / 86_400_000);
+      return { status: 'grace' as const, plan: 'trial', daysLeft: 0, graceDaysLeft };
+    }
+  }
+
+  return { status: 'expired' as const, plan: null, daysLeft: 0 };
+}
+
+export async function redeemToken(code: string, shopId: Types.ObjectId, userId: Types.ObjectId) {
+  const token = await AccessToken.findOne({ code: code.toUpperCase().trim(), shopId: null });
+  if (!token) throw Errors.notFound('Token — it may already be used or does not exist');
+
+  const shop = await Shop.findById(shopId);
+  if (!shop) throw Errors.notFound('Shop');
+
+  const now = new Date();
+  const base = shop.accessExpiry && shop.accessExpiry > now ? shop.accessExpiry : now;
+  shop.accessExpiry = new Date(base.getTime() + token.durationDays * 86_400_000);
+  shop.plan = token.plan;
+  await shop.save();
+
+  token.shopId = shopId;
+  token.redeemedBy = userId;
+  token.redeemedAt = now;
+  await token.save();
+
+  const daysLeft = Math.ceil((shop.accessExpiry.getTime() - now.getTime()) / 86_400_000);
+  return { plan: token.plan, daysLeft, accessExpiry: shop.accessExpiry };
+}
 
 export async function loginUser(input: LoginInput) {
   // Always find by email; never reveal whether the email exists

@@ -7,7 +7,10 @@ import '@/i18n';
 import '@/styles/globals.css';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { AppLayout } from '@/components/AppLayout';
+import { SubscriptionGuard } from '@/features/billing/SubscriptionGuard';
+import { AdminPage } from '@/features/admin/AdminPage';
 import { LoginPage } from '@/features/auth/LoginPage';
+import { SignupPage } from '@/features/auth/SignupPage';
 import { DashboardPage } from '@/features/dashboard/DashboardPage';
 import { ProductsPage } from '@/features/products/ProductsPage';
 import { SuppliersPage } from '@/features/suppliers/SuppliersPage';
@@ -20,6 +23,7 @@ import { CreditsPage } from '@/features/credits/CreditsPage';
 import { ReportsPage } from '@/features/reports/ReportsPage';
 import { SettingsPage } from '@/features/settings/SettingsPage';
 import { MorePage } from '@/features/more/MorePage';
+import { AiPage } from '@/features/ai/AiPage';
 
 function AppSkeleton() {
   return (
@@ -29,14 +33,6 @@ function AppSkeleton() {
   );
 }
 
-function PlaceholderPage({ title }: { title: string }) {
-  return (
-    <div className="p-4 md:p-6">
-      <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">{title}</h1>
-      <p className="mt-2 text-sm text-slate-400">Coming in a future phase.</p>
-    </div>
-  );
-}
 
 export default function App() {
   return (
@@ -45,9 +41,12 @@ export default function App() {
         <Suspense fallback={<AppSkeleton />}>
           <Routes>
             <Route path="/login" element={<LoginPage />} />
+            <Route path="/signup" element={<SignupPage />} />
+
+            <Route path="/admin" element={<AdminPage />} />
 
             <Route element={<ProtectedRoute />}>
-              <Route element={<AppLayout />}>
+              <Route element={<SubscriptionGuard><AppLayout /></SubscriptionGuard>}>
                 <Route index element={<Navigate to="/dashboard" replace />} />
                 <Route path="/dashboard"  element={<DashboardPage />} />
                 <Route path="/products"   element={<ProductsPage />} />
@@ -61,7 +60,7 @@ export default function App() {
                 <Route path="/reports"    element={<ReportsPage />} />
                 <Route path="/settings"   element={<SettingsPage />} />
                 <Route path="/more"       element={<MorePage />} />
-                <Route path="/ai"         element={<PlaceholderPage title="AI Assistant" />} />
+                <Route path="/ai"         element={<AiPage />} />
               </Route>
             </Route>
 

@@ -249,13 +249,20 @@ inventoryRouter.delete(
   '/products/:id',
   requireRole('manager'),
   asyncHandler(async (req, res) => {
-    const product = await Product.findOneAndUpdate(
-      { _id: req.params.id, ...shopFilter(req) },
-      { isActive: false },
-      { new: true },
-    );
+    const product = await Product.findOne({ _id: req.params.id, ...shopFilter(req) });
     if (!product) throw Errors.notFound('Product');
-    res.json({ ok: true });
+
+    // Check if product has any sales history — block hard delete if so
+    const { Sale } = await import('../../models/Sale');
+    const salesCount = await Sale.countDocuments({ 'items.productId': product._id });
+    if (salesCount > 0) {
+      // Soft-delete only — preserve history
+      await Product.updateOne({ _id: product._id }, { isActive: false });
+      return res.json({ ok: true, archived: true, message: 'Product has sales history — it has been archived instead of deleted.' });
+    }
+
+    await Product.deleteOne({ _id: product._id });
+    return res.json({ ok: true, archived: false });
   }),
 );
 

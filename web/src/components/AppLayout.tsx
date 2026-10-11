@@ -4,6 +4,9 @@ import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth, useLogout } from '@/hooks/useAuth';
 import { OfflineBanner } from './OfflineBanner';
+import { JkLogo } from './JkLogo';
+import { SubscriptionBanner } from '@/features/billing/SubscriptionGuard';
+import { useSubscription } from '@/hooks/useSubscription';
 import { creditsApi } from '@/lib/creditsApi';
 import {
   LayoutDashboard,
@@ -16,7 +19,6 @@ import {
   Settings,
   LogOut,
   Bot,
-  Zap,
   ChevronRight,
   Receipt,
   Truck,
@@ -177,6 +179,7 @@ export function AppLayout() {
   const { data } = useAuth();
   const logout = useLogout();
   const navigate = useNavigate();
+  const { data: sub } = useSubscription();
 
   const userInitial = data?.user.name?.[0]?.toUpperCase() ?? '?';
   const membership = data?.memberships?.[0];
@@ -188,9 +191,7 @@ export function AppLayout() {
       <aside className="hidden md:flex w-56 flex-col bg-slate-900 text-slate-300 flex-shrink-0">
         {/* Logo */}
         <div className="flex h-14 items-center gap-2.5 px-4 border-b border-slate-800">
-          <div className="flex h-7 w-7 items-center justify-center rounded-md bg-primary-600">
-            <Zap size={14} className="text-white" strokeWidth={2.5} />
-          </div>
+          <JkLogo size={28} color="#ffffff" />
           <span className="font-bold text-white tracking-tight text-base">JUAKALI</span>
         </div>
 
@@ -306,6 +307,7 @@ export function AppLayout() {
       </div>
 
       <OfflineBanner />
+      {sub && <SubscriptionBanner data={sub} />}
     </div>
   );
 }

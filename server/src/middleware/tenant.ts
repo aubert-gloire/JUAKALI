@@ -10,6 +10,8 @@ export interface TenantContext {
   organizationId: Types.ObjectId;
   role: MembershipRole;
   membershipId: Types.ObjectId;
+  trialEndsAt?: Date;
+  accessExpiry?: Date;
 }
 
 declare global {
@@ -74,6 +76,8 @@ export async function requireTenant(
       organizationId: membership.organizationId,
       role: membership.role,
       membershipId: membership._id,
+      trialEndsAt: shop.trialEndsAt,
+      accessExpiry: shop.accessExpiry,
     };
 
     next();

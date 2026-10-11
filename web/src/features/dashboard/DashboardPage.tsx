@@ -68,7 +68,13 @@ function KpiCard({
         {loading ? (
           <div className="h-6 w-24 bg-slate-100 dark:bg-slate-700 rounded animate-pulse mt-1" />
         ) : (
-          <p className="text-xl font-bold text-slate-900 dark:text-slate-100 mt-0.5 tabular-nums">{value}</p>
+          <p className={clsx(
+            'font-bold text-slate-900 dark:text-slate-100 mt-0.5 tabular-nums',
+            String(value).length <= 9  && 'text-xl',
+            String(value).length >= 10 && String(value).length <= 13 && 'text-lg',
+            String(value).length >= 14 && String(value).length <= 17 && 'text-base',
+            String(value).length >= 18 && 'text-sm',
+          )}>{value}</p>
         )}
         {sub && <p className="text-xs text-slate-400 mt-0.5">{sub}</p>}
       </div>
@@ -180,8 +186,8 @@ export function DashboardPage() {
         </div>
       </div>
 
-      {/* KPI cards — 6 cards, 2-col mobile / 3-col md / 6-col lg */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+      {/* KPI cards — 2-col mobile / 3-col md+ */}
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
         <KpiCard
           label="Revenue"
           value={s ? fmt(s.revenue) : '—'}

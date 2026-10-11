@@ -7,6 +7,7 @@ import { authLimiter } from '../../middleware/rateLimiter';
 import { EntitlementsService } from '../../utils/entitlements';
 import {
   loginSchema,
+  registerSchema,
   changePasswordSchema,
   inviteUserSchema,
   resetStaffPasswordSchema,
@@ -14,6 +15,7 @@ import {
   updateShopSchema,
 } from './validation';
 import {
+  registerUser,
   loginUser,
   refreshTokens,
   getCurrentUser,
@@ -25,10 +27,38 @@ import {
   updateShop,
   updateStaffRole,
   deactivateStaff,
+  getSubscriptionStatus,
+  redeemToken,
 } from './service';
 import { Errors } from '../../utils/errors';
 
 export const authRouter = Router();
+
+// POST /api/auth/register
+authRouter.post(
+  '/register',
+  authLimiter,
+  asyncHandler(async (req, res) => {
+    const input = registerSchema.safeParse(req.body);
+    if (!input.success) throw Errors.validation(input.error.issues[0].message);
+
+    const { user, accessToken, refreshToken } = await registerUser(input.data);
+
+    res
+      .status(201)
+      .cookie('access_token', accessToken, { ...COOKIE_OPTIONS, maxAge: ACCESS_COOKIE_MAX_AGE })
+      .cookie('refresh_token', refreshToken, { ...COOKIE_OPTIONS, maxAge: REFRESH_COOKIE_MAX_AGE })
+      .json({
+        user: {
+          id: user._id,
+          name: user.name,
+          email: user.email,
+          preferredLanguage: user.preferredLanguage,
+          mustChangePassword: false,
+        },
+      });
+  }),
+);
 
 // POST /api/auth/login
 authRouter.post(
@@ -253,5 +283,29 @@ authRouter.patch(
 
     const shop = await updateShop(req.tenant!.shopId, input.data);
     res.json({ shop });
+  }),
+);
+
+// GET /api/auth/subscription — current shop subscription status
+authRouter.get(
+  '/subscription',
+  requireAuth,
+  requireTenant,
+  asyncHandler(async (req, res) => {
+    const status = await getSubscriptionStatus(req.tenant!.shopId);
+    res.json(status);
+  }),
+);
+
+// POST /api/auth/redeem — redeem access token
+authRouter.post(
+  '/redeem',
+  requireAuth,
+  requireTenant,
+  asyncHandler(async (req, res) => {
+    const { code } = req.body as { code?: string };
+    if (!code?.trim()) throw Errors.validation('Token code is required');
+    const result = await redeemToken(code, req.tenant!.shopId, req.user!.id as import('mongoose').Types.ObjectId);
+    res.json(result);
   }),
 );

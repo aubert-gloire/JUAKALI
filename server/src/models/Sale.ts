@@ -28,6 +28,7 @@ export interface ISale extends Document {
   change?: number;
   customerId?: Types.ObjectId;
   customerName?: string;
+  customerPhone?: string;
   status: SaleStatus;
   voidedAt?: Date;
   voidedBy?: Types.ObjectId;
@@ -71,6 +72,7 @@ const SaleSchema = new Schema<ISale>(
     change: { type: Number },
     customerId: { type: Schema.Types.ObjectId, ref: 'Customer' },
     customerName: { type: String },
+    customerPhone: { type: String },
     status: { type: String, enum: ['completed', 'voided'], default: 'completed' },
     voidedAt: { type: Date },
     voidedBy: { type: Schema.Types.ObjectId, ref: 'User' },

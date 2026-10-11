@@ -7,7 +7,7 @@ export const CategoryBodySchema = z.object({
 
 export const ProductBodySchema = z.object({
   name: z.string().min(1).max(200).trim(),
-  sku: z.string().min(1).max(50).trim().optional(),
+  sku: z.preprocess((v) => (v === '' ? undefined : v), z.string().min(1).max(50).trim().optional()),
   barcode: z.string().trim().optional(),
   categoryId: z.string().optional(),
   unit: z.string().default('pcs'),

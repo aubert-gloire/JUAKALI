@@ -9,6 +9,8 @@ import { inventoryRouter } from './modules/inventory/routes';
 import { salesRouter } from './modules/sales/routes';
 import { creditsRouter } from './modules/credits/routes';
 import { reportsRouter } from './modules/reports/routes';
+import { aiRouter } from './modules/ai/routes';
+import { adminRouter } from './modules/admin/routes';
 
 export const app = express();
 
@@ -44,6 +46,8 @@ app.use('/api/inventory', inventoryRouter);
 app.use('/api/sales', salesRouter);
 app.use('/api/credits', creditsRouter);
 app.use('/api/reports', reportsRouter);
+app.use('/api/ai', aiRouter);
+app.use('/api/admin', adminRouter);
 
 // 404 for unknown API routes
 app.use('/api/*', (_req, res) => {

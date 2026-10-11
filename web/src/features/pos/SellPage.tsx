@@ -4,7 +4,7 @@ import { toast } from 'sonner';
 import {
   Search, X, Plus, Minus, Trash2, ShoppingCart,
   Banknote, Smartphone, CreditCard, AlertCircle, CheckCircle2, Tag,
-  Printer, MessageCircle, CheckCircle,
+  Printer, MessageCircle, CheckCircle, Download,
 } from 'lucide-react';
 import { productsApi, categoriesApi, type Product, type Category } from '@/lib/inventoryApi';
 import { salesApi, customersApi, type PaymentMethod, type Sale, type Customer, PAYMENT_LABELS } from '@/lib/salesApi';
@@ -37,14 +37,28 @@ function ProductCard({
 }) {
   const cat = product.categoryId as Category | null;
   const color = cat?.color ?? '#6B7280';
+  const outOfStock = product.stockQty === 0;
 
   return (
     <button
-      onClick={() => onAdd(product)}
-      className="relative flex flex-col rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-3 text-left hover:border-primary-300 hover:shadow-md dark:hover:border-primary-700 transition-all active:scale-[0.97] focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
+      onClick={() => !outOfStock && onAdd(product)}
+      disabled={outOfStock}
+      className={clsx(
+        'relative flex flex-col rounded-xl border p-3 text-left transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500',
+        outOfStock
+          ? 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 opacity-50 cursor-not-allowed'
+          : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-primary-300 hover:shadow-md dark:hover:border-primary-700 active:scale-[0.97]',
+      )}
     >
+      {/* Out of stock overlay label */}
+      {outOfStock && (
+        <span className="absolute top-2 right-2 text-[9px] font-bold uppercase tracking-wide bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400 px-1.5 py-0.5 rounded">
+          No stock
+        </span>
+      )}
+
       {/* Category color strip */}
-      <div className="w-8 h-1.5 rounded-full mb-2" style={{ backgroundColor: color }} />
+      <div className="w-8 h-1.5 rounded-full mb-2" style={{ backgroundColor: outOfStock ? '#94a3b8' : color }} />
 
       <p className="text-xs font-semibold text-slate-800 dark:text-slate-100 line-clamp-2 leading-tight flex-1">
         {product.name}
@@ -52,21 +66,21 @@ function ProductCard({
       <p className="text-[10px] text-slate-400 mt-1 font-mono">{product.sku}</p>
 
       <div className="flex items-center justify-between mt-2">
-        <span className="text-sm font-bold text-primary-600 dark:text-primary-400">
+        <span className={clsx('text-sm font-bold', outOfStock ? 'text-slate-400' : 'text-primary-600 dark:text-primary-400')}>
           {product.sellingPrice.toLocaleString()}
         </span>
-        <span
-          className={clsx(
-            'text-[10px] font-medium px-1.5 py-0.5 rounded-full',
-            product.stockQty === 0
-              ? 'bg-red-100 text-red-600'
-              : product.stockQty <= product.reorderLevel
-              ? 'bg-amber-100 text-amber-600'
-              : 'bg-green-100 text-green-600',
-          )}
-        >
-          {product.stockQty}
-        </span>
+        {!outOfStock && (
+          <span
+            className={clsx(
+              'text-[10px] font-medium px-1.5 py-0.5 rounded-full',
+              product.stockQty <= product.reorderLevel
+                ? 'bg-amber-100 text-amber-600'
+                : 'bg-green-100 text-green-600',
+            )}
+          >
+            {product.stockQty}
+          </span>
+        )}
       </div>
     </button>
   );
@@ -302,28 +316,210 @@ function PaymentModal({
   );
 }
 
+// ── Receipt PDF generator ─────────────────────────────────────────────────────
+
+async function generateReceiptPDF(sale: Sale) {
+  const { jsPDF } = await import('jspdf');
+
+  const SHOP_NAME    = 'JUAKALI STORE';
+  const SHOP_LOCATION = 'Kigali, Rwanda';
+  const SHOP_PHONE   = '+250 788 268 061';
+
+  const W = 80;          // mm — 80mm thermal width
+  const MARGIN = 6;
+  const LINE = 5;        // mm per text line
+  const doc = new jsPDF({ unit: 'mm', format: [W, 297], orientation: 'portrait' });
+
+  let y = MARGIN;
+  const mid = W / 2;
+
+  const dash = () => {
+    doc.setLineDashPattern([1, 1], 0);
+    doc.setDrawColor(180);
+    doc.line(MARGIN, y, W - MARGIN, y);
+    y += 4;
+  };
+
+  // Header
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(13);
+  doc.text(SHOP_NAME, mid, y, { align: 'center' });
+  y += LINE;
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.setTextColor(100);
+  doc.text(SHOP_LOCATION, mid, y, { align: 'center' });
+  y += LINE - 1;
+  doc.text(SHOP_PHONE, mid, y, { align: 'center' });
+  y += LINE;
+  doc.setTextColor(0);
+
+  dash();
+
+  // Receipt meta
+  doc.setFontSize(8);
+  const dateStr = new Date(sale.createdAt).toLocaleString('en-RW', {
+    day: 'numeric', month: 'short', year: 'numeric',
+    hour: '2-digit', minute: '2-digit',
+  });
+  doc.text(`Receipt #: ${sale.saleNumber}`, MARGIN, y);
+  y += LINE - 1;
+  doc.text(`Date: ${dateStr}`, MARGIN, y);
+  y += LINE;
+
+  dash();
+
+  // Items header
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7.5);
+  doc.text('ITEM', MARGIN, y);
+  doc.text('QTY', 44, y, { align: 'right' });
+  doc.text('PRICE', 55, y, { align: 'right' });
+  doc.text('TOTAL', W - MARGIN, y, { align: 'right' });
+  y += 1;
+  doc.setLineDashPattern([0.5, 0.5], 0);
+  doc.setDrawColor(200);
+  doc.line(MARGIN, y, W - MARGIN, y);
+  y += 3;
+
+  // Items
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  for (const item of sale.items) {
+    const name = item.productName.length > 20 ? item.productName.slice(0, 19) + '…' : item.productName;
+    doc.text(name, MARGIN, y);
+    doc.text(String(item.qty), 44, y, { align: 'right' });
+    doc.text(item.unitPrice.toLocaleString(), 55, y, { align: 'right' });
+    doc.setFont('helvetica', 'bold');
+    doc.text(item.totalPrice.toLocaleString(), W - MARGIN, y, { align: 'right' });
+    doc.setFont('helvetica', 'normal');
+    y += LINE - 0.5;
+  }
+
+  y += 1;
+  dash();
+
+  // Totals
+  doc.setFontSize(8);
+  if (sale.discountAmount > 0) {
+    doc.text('Subtotal', MARGIN, y);
+    doc.text(`RWF ${sale.subtotal.toLocaleString()}`, W - MARGIN, y, { align: 'right' });
+    y += LINE - 1;
+    doc.setTextColor(34, 197, 94);
+    doc.text('Discount', MARGIN, y);
+    doc.text(`-RWF ${sale.discountAmount.toLocaleString()}`, W - MARGIN, y, { align: 'right' });
+    doc.setTextColor(0);
+    y += LINE - 1;
+  }
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(10);
+  doc.text('TOTAL (RWF)', MARGIN, y);
+  doc.text(sale.total.toLocaleString(), W - MARGIN, y, { align: 'right' });
+  y += LINE + 1;
+
+  dash();
+
+  // Payment
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.text('Payment method', MARGIN, y);
+  doc.setFont('helvetica', 'bold');
+  doc.text(PAYMENT_LABELS[sale.paymentMethod], W - MARGIN, y, { align: 'right' });
+  doc.setFont('helvetica', 'normal');
+  y += LINE - 1;
+
+  if (sale.amountTendered != null) {
+    doc.text('Amount tendered', MARGIN, y);
+    doc.text(`RWF ${sale.amountTendered.toLocaleString()}`, W - MARGIN, y, { align: 'right' });
+    y += LINE - 1;
+  }
+  if (sale.change != null && sale.change > 0) {
+    doc.text('Change', MARGIN, y);
+    doc.text(`RWF ${sale.change.toLocaleString()}`, W - MARGIN, y, { align: 'right' });
+    y += LINE - 1;
+  }
+
+  // Customer
+  if (sale.customerName || sale.customerPhone) {
+    y += 1;
+    dash();
+    if (sale.customerName) {
+      doc.text('Customer', MARGIN, y);
+      doc.setFont('helvetica', 'bold');
+      doc.text(sale.customerName, W - MARGIN, y, { align: 'right' });
+      doc.setFont('helvetica', 'normal');
+      y += LINE - 1;
+    }
+    if (sale.customerPhone) {
+      doc.text('Phone', MARGIN, y);
+      doc.text(sale.customerPhone, W - MARGIN, y, { align: 'right' });
+      y += LINE - 1;
+    }
+  }
+
+  y += 2;
+  dash();
+
+  // Footer
+  doc.setFontSize(8);
+  doc.setTextColor(120);
+  doc.text('Thank you for your business!', mid, y, { align: 'center' });
+  y += LINE - 1;
+  doc.setFontSize(7);
+  doc.text('Powered by JUAKALI', mid, y, { align: 'center' });
+
+  // Trim page height to content
+  doc.internal.pageSize.height = y + MARGIN;
+
+  doc.save(`receipt-${sale.saleNumber}.pdf`);
+}
+
 // ── Receipt modal ─────────────────────────────────────────────────────────────
 
 function ReceiptModal({ sale, onClose }: { sale: Sale; onClose: () => void }) {
-  const shopName = 'JUAKALI STORE'; // shown on receipt header
+  const shopName = 'JUAKALI STORE';
+  const shopLocation = 'Kigali, Rwanda';
+  const shopPhone = '+250 788 268 061';
+  const [downloading, setDownloading] = useState(false);
+
+  const dateStr = new Date(sale.createdAt).toLocaleString('en-RW', {
+    day: 'numeric', month: 'short', year: 'numeric',
+    hour: '2-digit', minute: '2-digit',
+  });
 
   const handlePrint = () => window.print();
 
+  const handleDownload = async () => {
+    setDownloading(true);
+    try { await generateReceiptPDF(sale); }
+    finally { setDownloading(false); }
+  };
+
   const handleWhatsApp = () => {
+    const d = '─────────────────────';
     const lines = [
-      `*${shopName}*`,
-      `Receipt #${sale.saleNumber}`,
-      `Date: ${new Date(sale.createdAt).toLocaleDateString('en-RW', { day: 'numeric', month: 'short', year: 'numeric' })}`,
-      ``,
+      `🧾 *${shopName}*`,
+      `📍 ${shopLocation}  📞 ${shopPhone}`,
+      d,
+      `*Receipt #${sale.saleNumber}*`,
+      `📅 ${dateStr}`,
+      d,
       ...sale.items.map(
-        (i) => `• ${i.productName} x${i.qty}  RWF ${i.totalPrice.toLocaleString()}`
+        (i) => `▪ ${i.productName}\n   ${i.qty} × RWF ${i.unitPrice.toLocaleString()} = *RWF ${i.totalPrice.toLocaleString()}*`
       ),
-      ``,
-      sale.discountAmount > 0 ? `Subtotal: RWF ${sale.subtotal.toLocaleString()}` : '',
-      sale.discountAmount > 0 ? `Discount: -RWF ${sale.discountAmount.toLocaleString()}` : '',
-      `*Total: RWF ${sale.total.toLocaleString()}*`,
-      `Payment: ${PAYMENT_LABELS[sale.paymentMethod]}`,
-      sale.change ? `Change: RWF ${sale.change.toLocaleString()}` : '',
+      d,
+      sale.discountAmount > 0 ? `Subtotal:   RWF ${sale.subtotal.toLocaleString()}` : '',
+      sale.discountAmount > 0 ? `Discount:  −RWF ${sale.discountAmount.toLocaleString()}` : '',
+      `💰 *TOTAL:  RWF ${sale.total.toLocaleString()}*`,
+      d,
+      `Payment:   ${PAYMENT_LABELS[sale.paymentMethod]}`,
+      sale.amountTendered ? `Tendered: RWF ${sale.amountTendered.toLocaleString()}` : '',
+      sale.change ? `Change:    RWF ${sale.change.toLocaleString()}` : '',
+      sale.customerName ? `\n👤 ${sale.customerName}${sale.customerPhone ? `  |  ${sale.customerPhone}` : ''}` : '',
+      d,
+      `🙏 Thank you for your business!`,
     ].filter(Boolean).join('\n');
 
     window.open(`https://wa.me/?text=${encodeURIComponent(lines)}`, '_blank');
@@ -331,100 +527,196 @@ function ReceiptModal({ sale, onClose }: { sale: Sale; onClose: () => void }) {
 
   return (
     <>
-      {/* Print styles — only the receipt div shows when printing */}
-      <style>{`@media print { body > * { display: none !important; } #receipt-print { display: block !important; position: fixed; inset: 0; z-index: 9999; background: white; padding: 24px; } }`}</style>
+      <style>{`
+        @media print {
+          body > * { display: none !important; }
+          #receipt-print {
+            display: block !important;
+            position: fixed; inset: 0; z-index: 9999;
+            background: white;
+          }
+          #receipt-print .no-print { display: none !important; }
+          #receipt-print .print-body {
+            width: 80mm;
+            margin: 0 auto;
+            padding: 8mm 5mm;
+            font-family: 'Courier New', monospace;
+            font-size: 11px;
+            line-height: 1.55;
+          }
+        }
+      `}</style>
 
       <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
-        <div className="absolute inset-0 bg-black/50" onClick={onClose} />
+        <div className="absolute inset-0 bg-black/50 no-print" onClick={onClose} />
         <div
           id="receipt-print"
-          className="relative bg-white dark:bg-slate-900 rounded-t-2xl sm:rounded-xl w-full sm:max-w-sm shadow-2xl"
+          className="relative bg-white dark:bg-slate-900 rounded-t-2xl sm:rounded-2xl w-full sm:max-w-sm shadow-2xl overflow-hidden"
         >
-          {/* Success header */}
-          <div className="flex flex-col items-center pt-6 pb-4 px-5 border-b border-slate-100 dark:border-slate-700">
-            <div className="h-12 w-12 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center mb-2">
-              <CheckCircle size={24} className="text-green-600" />
-            </div>
-            <h2 className="font-bold text-slate-900 dark:text-slate-100 text-lg">{shopName}</h2>
-            <p className="text-xs text-slate-400 mt-0.5">
-              {new Date(sale.createdAt).toLocaleDateString('en-RW', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}
-            </p>
-            <p className="text-xs font-mono text-slate-500 mt-0.5">#{sale.saleNumber}</p>
-          </div>
-
-          {/* Items */}
-          <div className="px-5 py-3 space-y-1.5 max-h-52 overflow-y-auto">
-            {sale.items.map((item) => (
-              <div key={item.productId} className="flex justify-between items-baseline text-sm">
-                <span className="text-slate-700 dark:text-slate-300 truncate mr-2">
-                  {item.productName}
-                  <span className="text-slate-400 text-xs ml-1">×{item.qty}</span>
-                </span>
-                <span className="font-medium text-slate-800 dark:text-slate-200 tabular-nums flex-shrink-0">
-                  {item.totalPrice.toLocaleString()}
-                </span>
+          {/* Header bar — screen only */}
+          <div className="no-print flex items-center justify-between px-4 pt-4 pb-2">
+            <div className="flex items-center gap-2">
+              <div className="h-7 w-7 rounded-full bg-green-100 dark:bg-green-900/40 flex items-center justify-center">
+                <CheckCircle size={15} className="text-green-600" />
               </div>
-            ))}
+              <span className="text-sm font-semibold text-slate-800 dark:text-slate-100">Sale Complete</span>
+            </div>
+            <button onClick={onClose} className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+              <X size={16} />
+            </button>
           </div>
 
-          {/* Totals */}
-          <div className="px-5 py-3 border-t border-dashed border-slate-200 dark:border-slate-700 space-y-1">
-            {sale.discountAmount > 0 && (
-              <>
-                <div className="flex justify-between text-xs text-slate-500">
-                  <span>Subtotal</span>
-                  <span>{sale.subtotal.toLocaleString()}</span>
+          {/* ── Receipt body ─────────────────────────────────────────────────── */}
+          <div className="print-body px-6 py-3 font-mono text-[11px] leading-relaxed text-slate-800 dark:text-slate-100 max-h-[55vh] overflow-y-auto">
+
+            {/* Shop header */}
+            <div className="text-center mb-3">
+              <p className="text-[13px] font-bold tracking-widest uppercase">{shopName}</p>
+              <p className="text-slate-500 dark:text-slate-400 text-[10px]">{shopLocation}</p>
+              <p className="text-slate-400 text-[10px]">{shopPhone}</p>
+            </div>
+
+            <div className="border-t border-dashed border-slate-300 dark:border-slate-600 my-2" />
+
+            {/* Receipt meta */}
+            <div className="flex justify-between text-[10px] text-slate-500 dark:text-slate-400 mb-1">
+              <span>Receipt #</span>
+              <span className="font-semibold text-slate-700 dark:text-slate-200">{sale.saleNumber}</span>
+            </div>
+            <div className="flex justify-between text-[10px] text-slate-500 dark:text-slate-400">
+              <span>Date</span>
+              <span>{dateStr}</span>
+            </div>
+
+            <div className="border-t border-dashed border-slate-300 dark:border-slate-600 my-2" />
+
+            {/* Items header */}
+            <div className="flex justify-between text-[9px] font-bold uppercase tracking-wide text-slate-400 mb-1 px-0.5">
+              <span className="flex-1">Item</span>
+              <span className="w-8 text-right">Qty</span>
+              <span className="w-20 text-right">Price</span>
+              <span className="w-20 text-right">Total</span>
+            </div>
+            <div className="border-t border-slate-200 dark:border-slate-700 mb-2" />
+
+            {/* Items */}
+            <div className="space-y-2">
+              {sale.items.map((item, idx) => (
+                <div key={idx}>
+                  <div className="flex justify-between items-baseline gap-1">
+                    <span className="flex-1 text-slate-700 dark:text-slate-200 truncate text-[11px] font-medium">{item.productName}</span>
+                    <span className="w-8 text-right text-slate-500 tabular-nums">{item.qty}</span>
+                    <span className="w-20 text-right text-slate-500 tabular-nums text-[10px]">{item.unitPrice.toLocaleString()}</span>
+                    <span className="w-20 text-right font-bold tabular-nums">{item.totalPrice.toLocaleString()}</span>
+                  </div>
                 </div>
-                <div className="flex justify-between text-xs text-green-600">
-                  <span>Discount</span>
-                  <span>-{sale.discountAmount.toLocaleString()}</span>
+              ))}
+            </div>
+
+            <div className="border-t border-dashed border-slate-300 dark:border-slate-600 my-2" />
+
+            {/* Totals */}
+            <div className="space-y-0.5">
+              {sale.discountAmount > 0 && (
+                <>
+                  <div className="flex justify-between text-[11px] text-slate-500">
+                    <span>Subtotal</span>
+                    <span className="tabular-nums">RWF {sale.subtotal.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between text-[11px] text-green-600 dark:text-green-400">
+                    <span>Discount</span>
+                    <span className="tabular-nums">−RWF {sale.discountAmount.toLocaleString()}</span>
+                  </div>
+                </>
+              )}
+              <div className="flex justify-between font-bold text-[13px] pt-1 border-t border-slate-200 dark:border-slate-700 mt-1">
+                <span>TOTAL</span>
+                <span className="tabular-nums text-primary-600 dark:text-primary-400">RWF {sale.total.toLocaleString()}</span>
+              </div>
+            </div>
+
+            <div className="border-t border-dashed border-slate-300 dark:border-slate-600 my-2" />
+
+            {/* Payment */}
+            <div className="space-y-0.5 text-[11px]">
+              <div className="flex justify-between text-slate-600 dark:text-slate-300">
+                <span>Payment</span>
+                <span className="font-semibold">{PAYMENT_LABELS[sale.paymentMethod]}</span>
+              </div>
+              {sale.amountTendered != null && (
+                <div className="flex justify-between text-slate-500">
+                  <span>Tendered</span>
+                  <span className="tabular-nums">RWF {sale.amountTendered.toLocaleString()}</span>
+                </div>
+              )}
+              {sale.change != null && sale.change > 0 && (
+                <div className="flex justify-between text-slate-500">
+                  <span>Change</span>
+                  <span className="tabular-nums">RWF {sale.change.toLocaleString()}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Customer */}
+            {(sale.customerName || sale.customerPhone) && (
+              <>
+                <div className="border-t border-dashed border-slate-300 dark:border-slate-600 my-2" />
+                <div className="space-y-0.5 text-[11px]">
+                  {sale.customerName && (
+                    <div className="flex justify-between text-slate-600 dark:text-slate-300">
+                      <span>Customer</span>
+                      <span className="font-semibold">{sale.customerName}</span>
+                    </div>
+                  )}
+                  {sale.customerPhone && (
+                    <div className="flex justify-between text-slate-500">
+                      <span>Phone</span>
+                      <span>{sale.customerPhone}</span>
+                    </div>
+                  )}
                 </div>
               </>
             )}
-            <div className="flex justify-between font-bold text-slate-900 dark:text-slate-100">
-              <span>Total (RWF)</span>
-              <span className="text-lg tabular-nums">{sale.total.toLocaleString()}</span>
-            </div>
-            <div className="flex justify-between text-xs text-slate-500">
-              <span>Payment</span>
-              <span>{PAYMENT_LABELS[sale.paymentMethod]}</span>
-            </div>
-            {sale.change != null && sale.change > 0 && (
-              <div className="flex justify-between text-xs text-slate-500">
-                <span>Change</span>
-                <span>{sale.change.toLocaleString()}</span>
-              </div>
-            )}
-            {sale.customerName && (
-              <div className="flex justify-between text-xs text-slate-500">
-                <span>Customer</span>
-                <span>{sale.customerName}</span>
-              </div>
-            )}
+
+            {/* Footer */}
+            <div className="border-t border-dashed border-slate-300 dark:border-slate-600 my-2" />
+            <p className="text-center text-[10px] text-slate-400 font-sans">Thank you for your business! 🙏</p>
+            <p className="text-center text-[9px] text-slate-300 dark:text-slate-600 font-sans mt-0.5">Powered by JUAKALI</p>
           </div>
 
-          {/* Actions */}
-          <div className="px-5 pb-6 pt-3 grid grid-cols-3 gap-2">
+          {/* ── Action buttons — screen only ─────────────────────────────────── */}
+          <div className="no-print px-4 pb-5 pt-3 grid grid-cols-4 gap-2 border-t border-slate-100 dark:border-slate-800">
             <button
               onClick={handleWhatsApp}
-              className="flex flex-col items-center gap-1 py-2.5 rounded-xl bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 hover:bg-green-100 transition-colors"
+              className="flex flex-col items-center gap-1 py-2.5 rounded-xl bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/40 transition-colors"
             >
-              <MessageCircle size={18} />
-              <span className="text-[10px] font-medium">WhatsApp</span>
+              <MessageCircle size={17} />
+              <span className="text-[9px] font-semibold">WhatsApp</span>
+            </button>
+            <button
+              onClick={handleDownload}
+              disabled={downloading}
+              className="flex flex-col items-center gap-1 py-2.5 rounded-xl bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors disabled:opacity-60"
+            >
+              {downloading
+                ? <div className="h-4 w-4 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" />
+                : <Download size={17} />
+              }
+              <span className="text-[9px] font-semibold">PDF</span>
             </button>
             <button
               onClick={handlePrint}
-              className="flex flex-col items-center gap-1 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 transition-colors"
+              className="flex flex-col items-center gap-1 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
             >
-              <Printer size={18} />
-              <span className="text-[10px] font-medium">Print</span>
+              <Printer size={17} />
+              <span className="text-[9px] font-semibold">Print</span>
             </button>
             <button
               onClick={onClose}
               className="flex flex-col items-center gap-1 py-2.5 rounded-xl bg-primary-600 text-white hover:bg-primary-700 transition-colors"
             >
-              <CheckCircle2 size={18} />
-              <span className="text-[10px] font-medium">Done</span>
+              <CheckCircle2 size={17} />
+              <span className="text-[9px] font-semibold">Done</span>
             </button>
           </div>
         </div>
@@ -627,12 +919,17 @@ export function SellPage() {
       <div className="px-3 py-2 border-t border-slate-100 dark:border-slate-700">
         {selectedCustomer ? (
           <div className="flex items-center justify-between bg-blue-50 dark:bg-blue-900/20 rounded-lg px-3 py-1.5">
-            <p className="text-xs font-medium text-blue-700 dark:text-blue-300">
-              {selectedCustomer.name}
-            </p>
+            <div className="min-w-0">
+              <p className="text-xs font-medium text-blue-700 dark:text-blue-300 truncate">
+                {selectedCustomer.name}
+              </p>
+              {selectedCustomer.phone && (
+                <p className="text-[10px] text-blue-500 dark:text-blue-400">{selectedCustomer.phone}</p>
+              )}
+            </div>
             <button
               onClick={() => { setSelectedCustomer(null); setCustomerSearch(''); }}
-              className="text-blue-400 hover:text-blue-600"
+              className="text-blue-400 hover:text-blue-600 flex-shrink-0 ml-2"
             >
               <X size={14} />
             </button>
@@ -701,10 +998,17 @@ export function SellPage() {
       <div className="p-3">
         <button
           onClick={() => setShowPayment(true)}
-          disabled={cart.length === 0}
+          disabled={cart.length === 0 || completeSale.isPending}
           className="btn-primary w-full text-base py-3.5 disabled:opacity-40"
         >
-          Charge RWF {total.toLocaleString()}
+          {completeSale.isPending ? (
+            <span className="flex items-center justify-center gap-2">
+              <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+              Processing…
+            </span>
+          ) : (
+            `Charge RWF ${total.toLocaleString()}`
+          )}
         </button>
       </div>
     </div>
@@ -790,6 +1094,18 @@ export function SellPage() {
             <div className="flex flex-col items-center justify-center h-40 text-slate-400 gap-2">
               <AlertCircle size={32} className="opacity-30" />
               <p className="text-sm">No products found</p>
+            </div>
+          ) : products.every((p) => p.stockQty === 0) ? (
+            <div className="space-y-2.5">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2.5">
+                {products.map((p) => (
+                  <ProductCard key={p._id} product={p} onAdd={addToCart} />
+                ))}
+              </div>
+              <div className="flex items-center gap-2 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 px-4 py-3 text-sm text-amber-700 dark:text-amber-400">
+                <AlertCircle size={16} className="flex-shrink-0" />
+                All products are out of stock. Go to <strong className="mx-1">Products → Adjust Stock</strong> to add units before selling.
+              </div>
             </div>
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2.5">

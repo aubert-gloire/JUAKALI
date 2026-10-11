@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
   Receipt, ChevronDown, ChevronUp, AlertCircle,
-  Banknote, Smartphone, CreditCard, Tag,
+  Banknote, Smartphone, CreditCard, Tag, Search, X, Phone,
 } from 'lucide-react';
 import { salesApi, type Sale, type PaymentMethod, PAYMENT_LABELS } from '@/lib/salesApi';
 import { clsx } from 'clsx';
@@ -149,6 +149,19 @@ function SaleRow({ sale, onVoid }: { sale: Sale; onVoid: (s: Sale) => void }) {
                 {sale.amountTendered != null && (
                   <span className="text-slate-500">Tendered: {sale.amountTendered.toLocaleString()} · Change: {(sale.change ?? 0).toLocaleString()}</span>
                 )}
+                {sale.customerPhone && (
+                  <a
+                    href={`https://wa.me/${sale.customerPhone.replace(/\D/g, '')}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    className="flex items-center gap-1 text-green-600 hover:text-green-700 font-medium"
+                    title={`WhatsApp ${sale.customerPhone}`}
+                  >
+                    <Phone size={11} />
+                    {sale.customerPhone}
+                  </a>
+                )}
                 {sale.status === 'completed' && (
                   <button
                     className="ml-auto text-red-500 hover:text-red-700 font-medium"
@@ -194,6 +207,7 @@ export function SalesHistoryPage() {
   const [range, setRange] = useState('today');
   const [paymentMethod, setPaymentMethod] = useState('all');
   const [status, setStatus] = useState('all');
+  const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [voidTarget, setVoidTarget] = useState<Sale | null>(null);
 
@@ -211,8 +225,19 @@ export function SalesHistoryPage() {
     staleTime: 15_000,
   });
 
-  const sales = data?.sales ?? [];
+  const allSales = data?.sales ?? [];
   const pages = data?.pages ?? 1;
+
+  const q = search.trim().toLowerCase();
+  const sales = q
+    ? allSales.filter(
+        (s) =>
+          s.saleNumber.toLowerCase().includes(q) ||
+          (s.customerName?.toLowerCase().includes(q) ?? false) ||
+          (s.customerPhone?.includes(q) ?? false) ||
+          s.items.some((i) => i.productName.toLowerCase().includes(q)),
+      )
+    : allSales;
 
   const totalRevenue = sales.filter(s => s.status === 'completed').reduce((s, sale) => s + sale.total, 0);
 
@@ -227,6 +252,25 @@ export function SalesHistoryPage() {
             {sales.length > 0 && ` · RWF ${totalRevenue.toLocaleString()}`}
           </p>
         </div>
+      </div>
+
+      {/* Search */}
+      <div className="relative mb-3">
+        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+        <input
+          className="input pl-9 pr-8 py-2 text-sm w-full"
+          placeholder="Search by sale #, customer, phone, or product…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+        {search && (
+          <button
+            onClick={() => setSearch('')}
+            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+          >
+            <X size={14} />
+          </button>
+        )}
       </div>
 
       {/* Filters */}

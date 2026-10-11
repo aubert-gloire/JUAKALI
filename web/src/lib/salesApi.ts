@@ -33,6 +33,7 @@ export interface Sale {
   change?: number;
   customerId?: string;
   customerName?: string;
+  customerPhone?: string;
   status: SaleStatus;
   voidedAt?: string;
   voidReason?: string;

@@ -7,6 +7,7 @@ import { Sale } from '../../models/Sale';
 import { Expense } from '../../models/Expense';
 import { Product } from '../../models/Product';
 import { CreditAccount } from '../../models/CreditAccount';
+import { PurchaseOrder } from '../../models/PurchaseOrder';
 
 export const reportsRouter = Router();
 
@@ -300,5 +301,99 @@ reportsRouter.get(
     const grandTotal = byCategory.reduce((s: number, c: { total: number }) => s + c.total, 0);
 
     res.json({ period: { from, to }, byCategory, monthly, grandTotal });
+  }),
+);
+
+// ── PURCHASES ─────────────────────────────────────────────────────────────────
+
+reportsRouter.get(
+  '/purchases',
+  asyncHandler(async (req, res) => {
+    const { from, to } = parsePeriod(req.query as Record<string, string>);
+    const sid = shopId(req);
+
+    const dateMatch = { $gte: from, $lte: to };
+
+    const [summary, bySupplier, topProducts, monthly] = await Promise.all([
+      // Overall summary
+      PurchaseOrder.aggregate([
+        { $match: { shopId: sid, status: 'received', receivedAt: dateMatch } },
+        {
+          $group: {
+            _id: null,
+            totalSpend: { $sum: '$totalCost' },
+            orderCount: { $sum: 1 },
+            avgOrder: { $avg: '$totalCost' },
+          },
+        },
+      ]),
+
+      // Spend by supplier
+      PurchaseOrder.aggregate([
+        { $match: { shopId: sid, status: 'received', receivedAt: dateMatch } },
+        {
+          $group: {
+            _id: '$supplierName',
+            totalSpend: { $sum: '$totalCost' },
+            orderCount: { $sum: 1 },
+          },
+        },
+        { $sort: { totalSpend: -1 as const } },
+        { $limit: 10 },
+        { $project: { _id: 0, supplier: { $ifNull: ['$_id', 'Unknown'] }, totalSpend: 1, orderCount: 1 } },
+      ]),
+
+      // Top restocked products
+      PurchaseOrder.aggregate([
+        { $match: { shopId: sid, status: 'received', receivedAt: dateMatch } },
+        { $unwind: '$lines' },
+        {
+          $group: {
+            _id: { productId: '$lines.productId', name: '$lines.productName' },
+            totalQty: { $sum: '$lines.qty' },
+            totalCost: { $sum: '$lines.totalCost' },
+            orderCount: { $sum: 1 },
+          },
+        },
+        { $sort: { totalCost: -1 as const } },
+        { $limit: 10 },
+        {
+          $project: {
+            _id: 0,
+            productId: '$_id.productId',
+            productName: '$_id.name',
+            totalQty: 1,
+            totalCost: 1,
+            orderCount: 1,
+          },
+        },
+      ]),
+
+      // Monthly trend
+      PurchaseOrder.aggregate([
+        { $match: { shopId: sid, status: 'received', receivedAt: dateMatch } },
+        {
+          $group: {
+            _id: { $dateToString: { format: '%Y-%m', date: '$receivedAt', timezone: 'Africa/Kigali' } },
+            totalSpend: { $sum: '$totalCost' },
+            orderCount: { $sum: 1 },
+          },
+        },
+        { $sort: { _id: 1 as const } },
+        { $project: { _id: 0, month: '$_id', totalSpend: 1, orderCount: 1 } },
+      ]),
+    ]);
+
+    const s = summary[0] ?? { totalSpend: 0, orderCount: 0, avgOrder: 0 };
+
+    res.json({
+      period: { from, to },
+      totalSpend: s.totalSpend,
+      orderCount: s.orderCount,
+      avgOrder: Math.round(s.avgOrder ?? 0),
+      bySupplier,
+      topProducts,
+      monthly,
+    });
   }),
 );

@@ -4,7 +4,7 @@ import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { toast } from 'sonner';
-import { Plus, ShoppingBag, X, Trash2, CheckCircle, ChevronDown, XCircle } from 'lucide-react';
+import { Plus, ShoppingBag, X, Trash2, CheckCircle, ChevronDown, XCircle, Search } from 'lucide-react';
 import { purchasesApi, suppliersApi, productsApi } from '@/lib/inventoryApi';
 import { clsx } from 'clsx';
 
@@ -64,6 +64,7 @@ function CreatePOModal({ open, onClose }: { open: boolean; onClose: () => void }
 
   const { fields, append, remove } = useFieldArray({ control, name: 'lines' });
   const lines = watch('lines');
+  const selectedSupplierId = watch('supplierId');
 
   const total = lines.reduce((s, l) => s + (Number(l.qty) || 0) * (Number(l.unitCost) || 0), 0);
 
@@ -82,6 +83,7 @@ function CreatePOModal({ open, onClose }: { open: boolean; onClose: () => void }
 
   const products = productsQ.data?.products ?? [];
   const suppliers = suppliersQ.data?.suppliers ?? [];
+  const selectedSupplier = suppliers.find((s) => s._id === selectedSupplierId) ?? null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center">
@@ -104,6 +106,28 @@ function CreatePOModal({ open, onClose }: { open: boolean; onClose: () => void }
                 </select>
                 <ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
               </div>
+              {selectedSupplier && (selectedSupplier.phone || selectedSupplier.email) && (
+                <div className="mt-1.5 flex flex-wrap gap-2 text-[10px] text-slate-500">
+                  {selectedSupplier.phone && (
+                    <a
+                      href={`https://wa.me/${selectedSupplier.phone.replace(/\D/g, '')}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1 text-green-600 hover:text-green-700 font-medium"
+                    >
+                      📞 {selectedSupplier.phone}
+                    </a>
+                  )}
+                  {selectedSupplier.email && (
+                    <a
+                      href={`mailto:${selectedSupplier.email}`}
+                      className="flex items-center gap-1 text-blue-600 hover:text-blue-700"
+                    >
+                      ✉ {selectedSupplier.email}
+                    </a>
+                  )}
+                </div>
+              )}
             </div>
             <div>
               <label className="label">Or enter supplier name</label>
@@ -204,6 +228,7 @@ function CreatePOModal({ open, onClose }: { open: boolean; onClose: () => void }
 export function PurchasesPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [page, setPage] = useState(1);
+  const [search, setSearch] = useState('');
   const qc = useQueryClient();
 
   const { data, isLoading } = useQuery({
@@ -212,6 +237,13 @@ export function PurchasesPage() {
     staleTime: 15_000,
     placeholderData: (prev) => prev,
   });
+
+  const suppliersQ = useQuery({
+    queryKey: ['inventory', 'suppliers'],
+    queryFn: () => suppliersApi.list(),
+    staleTime: 60_000,
+  });
+  const supplierMap = new Map((suppliersQ.data?.suppliers ?? []).map((s) => [s._id, s]));
 
   const receive = useMutation({
     mutationFn: (id: string) => purchasesApi.receive(id),
@@ -233,7 +265,16 @@ export function PurchasesPage() {
     onError: (e) => toast.error(e.message),
   });
 
-  const orders = data?.orders ?? [];
+  const allOrders = data?.orders ?? [];
+  const sq = search.trim().toLowerCase();
+  const orders = sq
+    ? allOrders.filter(
+        (o) =>
+          o.orderNumber.toLowerCase().includes(sq) ||
+          (o.supplierName?.toLowerCase().includes(sq) ?? false) ||
+          o.lines.some((l) => l.productName.toLowerCase().includes(sq)),
+      )
+    : allOrders;
 
   return (
     <div className="p-4 md:p-6 space-y-4 max-w-5xl">
@@ -242,6 +283,25 @@ export function PurchasesPage() {
         <button onClick={() => setCreateOpen(true)} className="btn-primary gap-1.5">
           <Plus size={15} /> New Purchase Order
         </button>
+      </div>
+
+      {/* Search */}
+      <div className="relative">
+        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+        <input
+          className="input pl-9 pr-8 py-2 text-sm w-full"
+          placeholder="Search by PO #, supplier, or product…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+        {search && (
+          <button
+            onClick={() => setSearch('')}
+            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+          >
+            <X size={14} />
+          </button>
+        )}
       </div>
 
       <div className="card p-0 overflow-hidden">
@@ -273,8 +333,21 @@ export function PurchasesPage() {
                   {orders.map((o) => (
                     <tr key={o._id} className="border-b border-slate-50 dark:border-slate-700/50 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
                       <td className="px-4 py-3 font-mono text-xs font-semibold text-slate-700 dark:text-slate-300">{o.orderNumber}</td>
-                      <td className="px-4 py-3 text-slate-600 dark:text-slate-300 hidden md:table-cell">
-                        {o.supplierName ?? '—'}
+                      <td className="px-4 py-3 hidden md:table-cell">
+                        <p className="text-sm text-slate-700 dark:text-slate-300">{o.supplierName ?? '—'}</p>
+                        {o.supplierId && (() => {
+                          const sup = supplierMap.get(o.supplierId);
+                          return sup?.phone ? (
+                            <a
+                              href={`https://wa.me/${sup.phone.replace(/\D/g, '')}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-[10px] text-green-600 hover:text-green-700 flex items-center gap-0.5"
+                            >
+                              📞 {sup.phone}
+                            </a>
+                          ) : null;
+                        })()}
                       </td>
                       <td className="px-4 py-3"><StatusBadge status={o.status} /></td>
                       <td className="px-4 py-3 text-right text-slate-500 hidden md:table-cell">{o.lines.length}</td>

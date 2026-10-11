@@ -6,7 +6,7 @@ import {
 } from 'recharts';
 import {
   TrendingUp, TrendingDown, DollarSign, ShoppingCart,
-  Package, AlertTriangle, CreditCard,
+  Package, AlertTriangle, CreditCard, Truck,
 } from 'lucide-react';
 import { reportsApi, type Period, type PeriodParams } from '@/lib/reportsApi';
 import { clsx } from 'clsx';
@@ -86,7 +86,7 @@ function OverviewTab({ params }: { params: PeriodParams }) {
   return (
     <div className="space-y-6">
       {/* KPI grid */}
-      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
         <KpiCard label="Revenue" value={`${fmtShort(data.revenue)} RWF`} sub={`${data.transactions} sales`} icon={DollarSign} accent />
         <KpiCard label="Gross Profit" value={`${fmtShort(data.grossProfit)} RWF`} sub={`${data.grossMargin}% margin`} icon={TrendingUp} positive={data.grossProfit >= 0} />
         <KpiCard label="Expenses" value={`${fmtShort(data.expenses)} RWF`} icon={TrendingDown} positive />
@@ -397,6 +397,103 @@ function ExpensesTab({ params }: { params: PeriodParams }) {
   );
 }
 
+// ── Purchases Tab ─────────────────────────────────────────────────────────────
+
+function PurchasesTab({ params }: { params: PeriodParams }) {
+  const { data, isLoading } = useQuery({
+    queryKey: ['reports', 'purchases', params],
+    queryFn: () => reportsApi.purchases(params),
+    staleTime: 60_000,
+  });
+
+  if (isLoading) return <LoadingSpinner />;
+  if (!data) return null;
+
+  const supplierChartData = data.bySupplier.map((s) => ({
+    name: s.supplier.length > 16 ? s.supplier.slice(0, 14) + '…' : s.supplier,
+    fullName: s.supplier,
+    spend: s.totalSpend,
+    orders: s.orderCount,
+  }));
+
+  return (
+    <div className="space-y-6">
+      {/* KPI row */}
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+        <KpiCard label="Total Spend" value={`${fmt(data.totalSpend)} RWF`} icon={Truck} accent />
+        <KpiCard label="Purchase Orders" value={String(data.orderCount)} icon={ShoppingCart} positive />
+        <KpiCard label="Avg Order Value" value={`${fmt(data.avgOrder)} RWF`} icon={DollarSign} positive />
+      </div>
+
+      {/* Supplier spend chart */}
+      {supplierChartData.length > 0 && (
+        <div className="card p-5">
+          <h3 className="font-semibold text-slate-800 dark:text-slate-200 mb-4">Spend by Supplier</h3>
+          <ResponsiveContainer width="100%" height={220}>
+            <BarChart data={supplierChartData} margin={{ top: 4, right: 8, bottom: 4, left: 0 }}>
+              <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+              <YAxis tickFormatter={fmtShort} tick={{ fontSize: 11 }} width={48} />
+              <Tooltip formatter={(v: number) => [`${fmt(v as number)} RWF`, 'Spend']} />
+              <Bar dataKey="spend" fill="#ea580c" radius={[3, 3, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+
+      {/* Top restocked products */}
+      {data.topProducts.length > 0 && (
+        <div className="card p-5">
+          <h3 className="font-semibold text-slate-800 dark:text-slate-200 mb-4">Top Restocked Products</h3>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="text-left text-slate-400 border-b border-slate-100 dark:border-slate-700">
+                  <th className="pb-2 font-medium">Product</th>
+                  <th className="pb-2 font-medium text-right">Qty Received</th>
+                  <th className="pb-2 font-medium text-right">Total Cost</th>
+                  <th className="pb-2 font-medium text-right">Orders</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
+                {data.topProducts.map((p) => (
+                  <tr key={p.productId} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                    <td className="py-2.5 font-medium text-slate-700 dark:text-slate-300">{p.productName}</td>
+                    <td className="py-2.5 text-right tabular-nums text-slate-600 dark:text-slate-400">{p.totalQty}</td>
+                    <td className="py-2.5 text-right tabular-nums text-slate-800 dark:text-slate-200">{fmt(p.totalCost)} RWF</td>
+                    <td className="py-2.5 text-right tabular-nums text-slate-500">{p.orderCount}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Monthly trend */}
+      {data.monthly.length > 1 && (
+        <div className="card p-5">
+          <h3 className="font-semibold text-slate-800 dark:text-slate-200 mb-4">Monthly Spend Trend</h3>
+          <ResponsiveContainer width="100%" height={200}>
+            <LineChart data={data.monthly} margin={{ top: 4, right: 8, bottom: 4, left: 0 }}>
+              <XAxis dataKey="month" tick={{ fontSize: 11 }} />
+              <YAxis tickFormatter={fmtShort} tick={{ fontSize: 11 }} width={48} />
+              <Tooltip formatter={(v: number) => [`${fmt(v)} RWF`, 'Spend']} />
+              <Line type="monotone" dataKey="totalSpend" stroke="#ea580c" strokeWidth={2} dot={false} />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+
+      {data.orderCount === 0 && (
+        <div className="card p-10 text-center">
+          <Truck className="mx-auto mb-3 text-slate-300" size={32} />
+          <p className="text-sm text-slate-500">No received purchase orders for this period.</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Loading spinner ───────────────────────────────────────────────────────────
 
 function LoadingSpinner() {
@@ -414,6 +511,7 @@ const TABS = [
   { id: 'products', label: 'Products' },
   { id: 'customers', label: 'Customers' },
   { id: 'expenses', label: 'Expenses' },
+  { id: 'purchases', label: 'Purchases' },
 ] as const;
 
 type TabId = (typeof TABS)[number]['id'];
@@ -453,13 +551,13 @@ export function ReportsPage() {
       </div>
 
       {/* Tab navigation */}
-      <div className="flex gap-1 mb-6 border-b border-slate-200 dark:border-slate-700">
+      <div className="flex gap-1 mb-6 border-b border-slate-200 dark:border-slate-700 overflow-x-auto scrollbar-none">
         {TABS.map((t) => (
           <button
             key={t.id}
             onClick={() => setTab(t.id)}
             className={clsx(
-              'px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px',
+              'px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px whitespace-nowrap',
               tab === t.id
                 ? 'border-primary-600 text-primary-600'
                 : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200',
@@ -475,6 +573,7 @@ export function ReportsPage() {
       {tab === 'products' && <ProductsTab params={params} />}
       {tab === 'customers' && <CustomersTab params={params} />}
       {tab === 'expenses' && <ExpensesTab params={params} />}
+      {tab === 'purchases' && <PurchasesTab params={params} />}
     </div>
   );
 }

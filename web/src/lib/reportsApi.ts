@@ -44,6 +44,16 @@ export interface ExpensesData {
   grandTotal: number;
 }
 
+export interface PurchasesData {
+  period: { from: string; to: string };
+  totalSpend: number;
+  orderCount: number;
+  avgOrder: number;
+  bySupplier: { supplier: string; totalSpend: number; orderCount: number }[];
+  topProducts: { productId: string; productName: string; totalQty: number; totalCost: number; orderCount: number }[];
+  monthly: { month: string; totalSpend: number; orderCount: number }[];
+}
+
 export const reportsApi = {
   overview: (params: PeriodParams) =>
     api.get<OverviewData>(`/reports/overview${qs(params)}`),
@@ -53,4 +63,6 @@ export const reportsApi = {
     api.get<CustomersData>(`/reports/customers${qs(params)}`),
   expenses: (params: PeriodParams) =>
     api.get<ExpensesData>(`/reports/expenses${qs(params)}`),
+  purchases: (params: PeriodParams) =>
+    api.get<PurchasesData>(`/reports/purchases${qs(params)}`),
 };

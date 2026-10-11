@@ -30,6 +30,9 @@ const envSchema = z.object({
   AI_REQUESTS_PER_USER_PER_DAY: z.coerce.number().default(50),
   TRIAL_DAYS: z.coerce.number().default(14),
   GRACE_DAYS: z.coerce.number().default(7),
+
+  PLATFORM_ADMIN_EMAIL: z.string().email().default('admin@juakali.rw'),
+  PLATFORM_ADMIN_PASSWORD: z.string().default('JuakaliAdmin2026!'),
 });
 
 const parsed = envSchema.safeParse(process.env);

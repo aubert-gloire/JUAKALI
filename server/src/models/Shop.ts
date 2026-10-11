@@ -11,6 +11,9 @@ export interface IShop extends Document {
   receiptFooter?: string;
   allowNegativeStock: boolean;
   lowStockDefault: number;
+  trialEndsAt?: Date;
+  accessExpiry?: Date;
+  plan?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -26,6 +29,9 @@ const ShopSchema = new Schema<IShop>(
     receiptFooter: { type: String },
     allowNegativeStock: { type: Boolean, default: false },
     lowStockDefault: { type: Number, default: 5, min: 0 },
+    trialEndsAt: { type: Date },
+    accessExpiry: { type: Date },
+    plan: { type: String, default: 'trial' },
   },
   { timestamps: true },
 );

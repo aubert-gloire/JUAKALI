@@ -11,6 +11,7 @@ export type ErrorCode =
   | 'FEATURE_NOT_AVAILABLE'
   | 'LIMIT_EXCEEDED'
   | 'NEGATIVE_STOCK'
+  | 'PAYMENT_REQUIRED'
   | 'INTERNAL_ERROR';
 
 export class AppError extends Error {
@@ -68,6 +69,9 @@ export const Errors = {
       `Insufficient stock for '${productName}'`,
       422,
     ),
+
+  paymentRequired: (msg = 'Your trial has expired. Redeem an access token to continue.') =>
+    new AppError('PAYMENT_REQUIRED', msg, 402),
 
   internal: (msg = 'Internal server error') =>
     new AppError('INTERNAL_ERROR', msg, 500),

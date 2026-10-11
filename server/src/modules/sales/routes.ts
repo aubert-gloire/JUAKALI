@@ -174,15 +174,6 @@ salesRouter.get(
   }),
 );
 
-salesRouter.get(
-  '/:id',
-  asyncHandler(async (req, res) => {
-    const sale = await Sale.findOne({ _id: req.params.id, ...shopFilter(req) }).lean();
-    if (!sale) throw Errors.notFound('Sale');
-    res.json({ sale });
-  }),
-);
-
 salesRouter.post(
   '/',
   asyncHandler(async (req, res) => {
@@ -226,6 +217,10 @@ salesRouter.post(
     const seq = await nextSeq(req.tenant!.shopId, 'sale');
     const saleNumber = `S-${String(seq).padStart(6, '0')}`;
 
+    const customerForPhone = body.customerId
+      ? await Customer.findById(body.customerId).lean()
+      : null;
+
     const sale = await Sale.create({
       ...shopFilter(req),
       saleNumber,
@@ -240,6 +235,7 @@ salesRouter.post(
       change: body.amountTendered != null ? Math.max(0, body.amountTendered - total) : undefined,
       customerId: body.customerId ? new mongoose.Types.ObjectId(body.customerId) : undefined,
       customerName: body.customerName,
+      customerPhone: customerForPhone?.phone,
       cashierId: req.user!.id,
       notes: body.notes,
     });
@@ -270,9 +266,7 @@ salesRouter.post(
 
     // Auto-create credit account for credit sales
     if (body.paymentMethod === 'credit') {
-      const customer = body.customerId
-        ? await Customer.findById(body.customerId).lean()
-        : null;
+      const customer = customerForPhone;
 
       const upfront = body.creditUpfrontAmount ?? 0;
       const creditBalance = total - upfront;
@@ -509,5 +503,15 @@ salesRouter.delete(
     const expense = await Expense.findOneAndDelete({ _id: req.params.id, ...shopFilter(req) });
     if (!expense) throw Errors.notFound('Expense');
     res.json({ ok: true });
+  }),
+);
+
+// /:id must be last — all literal paths above must resolve before this wildcard
+salesRouter.get(
+  '/:id',
+  asyncHandler(async (req, res) => {
+    const sale = await Sale.findOne({ _id: req.params.id, ...shopFilter(req) }).lean();
+    if (!sale) throw Errors.notFound('Sale');
+    res.json({ sale });
   }),
 );
