@@ -51,7 +51,7 @@ async function buildShopContext(shopId: Types.ObjectId): Promise<string> {
         {
           $group: {
             _id: null,
-            revenue: { $sum: '$totalAmount' },
+            revenue: { $sum: '$total' },
             profit: { $sum: '$profit' },
             count: { $sum: 1 },
           },
@@ -63,7 +63,7 @@ async function buildShopContext(shopId: Types.ObjectId): Promise<string> {
         {
           $group: {
             _id: null,
-            revenue: { $sum: '$totalAmount' },
+            revenue: { $sum: '$total' },
             profit: { $sum: '$profit' },
             count: { $sum: 1 },
           },
