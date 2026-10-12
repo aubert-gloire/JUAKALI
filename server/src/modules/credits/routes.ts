@@ -247,3 +247,15 @@ creditsRouter.post(
     res.json({ updated });
   }),
 );
+
+// Delete credit account — manager only, only if balance is zero or for write-off
+creditsRouter.delete(
+  '/:id',
+  requireRole('manager'),
+  asyncHandler(async (req, res) => {
+    const account = await CreditAccount.findOne({ _id: req.params.id, ...shopFilter(req) });
+    if (!account) throw Errors.notFound('Credit account');
+    await CreditAccount.findByIdAndDelete(req.params.id);
+    res.json({ ok: true });
+  }),
+);

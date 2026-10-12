@@ -3,9 +3,22 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
   Receipt, ChevronDown, ChevronUp, AlertCircle,
-  Banknote, Smartphone, CreditCard, Tag, Search, X, Phone,
+  Banknote, Smartphone, CreditCard, Tag, Search, X, Phone, Pencil,
+  Printer, Download, FileText,
 } from 'lucide-react';
 import { salesApi, type Sale, type PaymentMethod, PAYMENT_LABELS } from '@/lib/salesApi';
+import { exportPDF } from '@/lib/exportUtils';
+
+const SALE_COLS = [
+  { label: 'Sale #',      value: (s: Sale) => s.saleNumber },
+  { label: 'Date',        value: (s: Sale) => new Date(s.createdAt).toLocaleString('en-RW', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) },
+  { label: 'Customer',    value: (s: Sale) => s.customerName ?? '' },
+  { label: 'Payment',     value: (s: Sale) => s.paymentMethod === 'mobile_money' ? 'MoMo' : s.paymentMethod },
+  { label: 'Items',       value: (s: Sale) => s.items.length },
+  { label: 'Total (RWF)', value: (s: Sale) => s.total },
+  { label: 'Profit',      value: (s: Sale) => s.profit },
+  { label: 'Status',      value: (s: Sale) => s.status === 'voided' ? 'Deleted' : 'Completed' },
+];
 import { clsx } from 'clsx';
 
 // ── Badges ────────────────────────────────────────────────────────────────────
@@ -38,8 +51,161 @@ function StatusBadge({ status }: { status: 'completed' | 'voided' }) {
         ? 'bg-green-100 text-green-700'
         : 'bg-red-100 text-red-700',
     )}>
-      {status === 'completed' ? 'Completed' : 'Voided'}
+      {status === 'completed' ? 'Completed' : 'Deleted'}
     </span>
+  );
+}
+
+// ── Export helpers ────────────────────────────────────────────────────────────
+
+function exportCSV(sales: Sale[]) {
+  const header = ['Sale #', 'Date', 'Customer', 'Payment', 'Items', 'Subtotal', 'Discount', 'Total (RWF)', 'Cost', 'Profit', 'Status'];
+  const rows = sales.map((s) => [
+    s.saleNumber,
+    new Date(s.createdAt).toLocaleString('en-RW'),
+    s.customerName ?? '',
+    s.paymentMethod,
+    s.items.length,
+    s.subtotal,
+    s.discountAmount,
+    s.total,
+    s.totalCost,
+    s.profit,
+    s.status === 'voided' ? 'Deleted' : 'Completed',
+  ]);
+  const csv = [header, ...rows].map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `sales-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function printSales(sales: Sale[]) {
+  const rows = sales.map((s) => `
+    <tr>
+      <td>${s.saleNumber}</td>
+      <td>${new Date(s.createdAt).toLocaleString('en-RW', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</td>
+      <td>${s.customerName ?? '—'}</td>
+      <td>${s.paymentMethod === 'mobile_money' ? 'MoMo' : s.paymentMethod}</td>
+      <td style="text-align:right">${s.total.toLocaleString()}</td>
+      <td>${s.status === 'voided' ? 'Deleted' : 'Completed'}</td>
+    </tr>`).join('');
+  const w = window.open('', '_blank');
+  if (!w) return;
+  w.document.write(`<!doctype html><html><head><title>Sales Report</title><style>
+    body{font-family:sans-serif;font-size:12px;padding:20px}
+    h2{margin-bottom:4px}p{margin:0 0 12px;color:#555}
+    table{width:100%;border-collapse:collapse}
+    th,td{border:1px solid #ddd;padding:6px 8px;text-align:left}
+    th{background:#f5f5f5;font-weight:600}
+    tr:nth-child(even){background:#fafafa}
+    @media print{body{padding:0}}
+  </style></head><body>
+    <h2>Sales Report</h2>
+    <p>Exported ${new Date().toLocaleString('en-RW')} · ${sales.length} records</p>
+    <table><thead><tr><th>Sale #</th><th>Date</th><th>Customer</th><th>Payment</th><th style="text-align:right">Total (RWF)</th><th>Status</th></tr></thead>
+    <tbody>${rows}</tbody></table>
+  </body></html>`);
+  w.document.close();
+  w.focus();
+  w.print();
+}
+
+// ── Edit modal ────────────────────────────────────────────────────────────────
+
+function EditSaleModal({ sale, onClose }: { sale: Sale; onClose: () => void }) {
+  const qc = useQueryClient();
+  const [customerName, setCustomerName] = useState(sale.customerName ?? '');
+  const [customerPhone, setCustomerPhone] = useState(sale.customerPhone ?? '');
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(sale.paymentMethod);
+  const [notes, setNotes] = useState(sale.notes ?? '');
+
+  const mutation = useMutation({
+    mutationFn: () =>
+      salesApi.update(sale._id, {
+        customerName: customerName.trim() || undefined,
+        customerPhone: customerPhone.trim() || undefined,
+        paymentMethod,
+        notes: notes.trim() || undefined,
+      }),
+    onSuccess: () => {
+      toast.success(`Sale ${sale.saleNumber} updated`);
+      qc.invalidateQueries({ queryKey: ['sales'] });
+      onClose();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+      <div className="relative bg-white dark:bg-slate-800 rounded-xl w-full max-w-sm shadow-2xl p-5">
+        <div className="flex items-center gap-3 mb-4">
+          <Pencil size={18} className="text-primary-600 flex-shrink-0" />
+          <div>
+            <p className="font-semibold text-slate-900 dark:text-slate-100">Edit Sale {sale.saleNumber}</p>
+            <p className="text-xs text-slate-400">Items and amounts cannot be changed — delete and re-record if needed.</p>
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          <div>
+            <label className="label text-xs">Customer name</label>
+            <input
+              className="input w-full mt-1 text-sm"
+              placeholder="Walk-in customer"
+              value={customerName}
+              onChange={(e) => setCustomerName(e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="label text-xs">Customer phone</label>
+            <input
+              className="input w-full mt-1 text-sm"
+              placeholder="+250 7XX XXX XXX"
+              value={customerPhone}
+              onChange={(e) => setCustomerPhone(e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="label text-xs">Payment method</label>
+            <select
+              className="input w-full mt-1 text-sm"
+              value={paymentMethod}
+              onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)}
+            >
+              <option value="cash">Cash</option>
+              <option value="mobile_money">Mobile Money</option>
+              <option value="card">Card</option>
+              <option value="credit">Credit</option>
+            </select>
+          </div>
+          <div>
+            <label className="label text-xs">Notes</label>
+            <textarea
+              className="input resize-none text-sm w-full mt-1 min-h-[60px]"
+              placeholder="Optional note…"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+            />
+          </div>
+        </div>
+
+        <div className="flex gap-2 mt-4">
+          <button className="btn-ghost flex-1" onClick={onClose}>Cancel</button>
+          <button
+            className="btn-primary flex-1"
+            disabled={mutation.isPending}
+            onClick={() => mutation.mutate()}
+          >
+            {mutation.isPending ? 'Saving…' : 'Save Changes'}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -52,7 +218,7 @@ function VoidModal({ sale, onClose }: { sale: Sale; onClose: () => void }) {
   const mutation = useMutation({
     mutationFn: () => salesApi.void(sale._id, reason),
     onSuccess: () => {
-      toast.success(`Sale ${sale.saleNumber} voided`);
+      toast.success(`Sale ${sale.saleNumber} deleted`);
       qc.invalidateQueries({ queryKey: ['sales'] });
       qc.invalidateQueries({ queryKey: ['inventory', 'products'] });
       onClose();
@@ -67,13 +233,13 @@ function VoidModal({ sale, onClose }: { sale: Sale; onClose: () => void }) {
         <div className="flex items-center gap-3 mb-4">
           <AlertCircle size={22} className="text-red-500 flex-shrink-0" />
           <div>
-            <p className="font-semibold text-slate-900 dark:text-slate-100">Void Sale {sale.saleNumber}?</p>
-            <p className="text-xs text-slate-400">Stock will be restored.</p>
+            <p className="font-semibold text-slate-900 dark:text-slate-100">Delete Sale {sale.saleNumber}?</p>
+            <p className="text-xs text-slate-400">Stock will be restored automatically.</p>
           </div>
         </div>
         <textarea
           className="input resize-none min-h-[72px] text-sm w-full"
-          placeholder="Reason for voiding (required)…"
+          placeholder="Reason for deleting (required)…"
           value={reason}
           onChange={(e) => setReason(e.target.value)}
         />
@@ -84,7 +250,7 @@ function VoidModal({ sale, onClose }: { sale: Sale; onClose: () => void }) {
             disabled={!reason.trim() || mutation.isPending}
             onClick={() => mutation.mutate()}
           >
-            {mutation.isPending ? 'Voiding…' : 'Void Sale'}
+            {mutation.isPending ? 'Deleting…' : 'Delete Sale'}
           </button>
         </div>
       </div>
@@ -94,7 +260,7 @@ function VoidModal({ sale, onClose }: { sale: Sale; onClose: () => void }) {
 
 // ── Sale row ──────────────────────────────────────────────────────────────────
 
-function SaleRow({ sale, onVoid }: { sale: Sale; onVoid: (s: Sale) => void }) {
+function SaleRow({ sale, onVoid, onEdit }: { sale: Sale; onVoid: (s: Sale) => void; onEdit: (s: Sale) => void }) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -140,7 +306,7 @@ function SaleRow({ sale, onVoid }: { sale: Sale; onVoid: (s: Sale) => void }) {
                   <span className="font-medium tabular-nums">{item.totalPrice.toLocaleString()}</span>
                 </div>
               ))}
-              <div className="border-t border-slate-200 dark:border-slate-700 pt-1.5 mt-1 flex flex-wrap gap-4 text-xs">
+              <div className="border-t border-slate-200 dark:border-slate-700 pt-1.5 mt-1 flex flex-wrap gap-4 text-xs items-center">
                 {sale.discountAmount > 0 && (
                   <span className="text-green-600">Discount: −{sale.discountAmount.toLocaleString()}</span>
                 )}
@@ -163,12 +329,20 @@ function SaleRow({ sale, onVoid }: { sale: Sale; onVoid: (s: Sale) => void }) {
                   </a>
                 )}
                 {sale.status === 'completed' && (
-                  <button
-                    className="ml-auto text-red-500 hover:text-red-700 font-medium"
-                    onClick={(e) => { e.stopPropagation(); onVoid(sale); }}
-                  >
-                    Void
-                  </button>
+                  <div className="ml-auto flex items-center gap-2">
+                    <button
+                      className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-primary-50 hover:text-primary-600 dark:hover:bg-primary-900/20 dark:hover:text-primary-400 font-medium transition-colors"
+                      onClick={(e) => { e.stopPropagation(); onEdit(sale); }}
+                    >
+                      <Pencil size={11} /> Edit
+                    </button>
+                    <button
+                      className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 font-medium transition-colors"
+                      onClick={(e) => { e.stopPropagation(); onVoid(sale); }}
+                    >
+                      Delete
+                    </button>
+                  </div>
                 )}
               </div>
             </div>
@@ -210,6 +384,7 @@ export function SalesHistoryPage() {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [voidTarget, setVoidTarget] = useState<Sale | null>(null);
+  const [editTarget, setEditTarget] = useState<Sale | null>(null);
 
   const rangeParams = rangeToParams(range);
 
@@ -252,6 +427,28 @@ export function SalesHistoryPage() {
             {sales.length > 0 && ` · RWF ${totalRevenue.toLocaleString()}`}
           </p>
         </div>
+        {sales.length > 0 && (
+          <div className="flex gap-2">
+            <button
+              onClick={() => printSales(sales)}
+              className="flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+            >
+              <Printer size={13} /> Print
+            </button>
+            <button
+              onClick={() => exportCSV(sales)}
+              className="flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+            >
+              <Download size={13} /> CSV
+            </button>
+            <button
+              onClick={() => exportPDF(sales, SALE_COLS, 'Sales Report')}
+              className="flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+            >
+              <FileText size={13} /> PDF
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Search */}
@@ -314,7 +511,7 @@ export function SalesHistoryPage() {
         >
           <option value="all">All status</option>
           <option value="completed">Completed</option>
-          <option value="voided">Voided</option>
+          <option value="voided">Deleted</option>
         </select>
       </div>
 
@@ -345,7 +542,7 @@ export function SalesHistoryPage() {
             </thead>
             <tbody>
               {sales.map((sale) => (
-                <SaleRow key={sale._id} sale={sale} onVoid={setVoidTarget} />
+                <SaleRow key={sale._id} sale={sale} onVoid={setVoidTarget} onEdit={setEditTarget} />
               ))}
             </tbody>
           </table>
@@ -365,6 +562,7 @@ export function SalesHistoryPage() {
         </div>
       )}
 
+      {editTarget && <EditSaleModal sale={editTarget} onClose={() => setEditTarget(null)} />}
       {voidTarget && <VoidModal sale={voidTarget} onClose={() => setVoidTarget(null)} />}
     </div>
   );

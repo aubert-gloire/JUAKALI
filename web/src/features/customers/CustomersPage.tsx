@@ -4,8 +4,17 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { toast } from 'sonner';
-import { Users, Plus, Phone, Mail, Search, X, Pencil, Trash2 } from 'lucide-react';
+import { Users, Plus, Phone, Mail, Search, X, Pencil, Trash2, Printer, Download, FileText } from 'lucide-react';
 import { customersApi, type Customer, type CustomerBody } from '@/lib/salesApi';
+import { exportCSV, printTable, exportPDF } from '@/lib/exportUtils';
+
+const CUSTOMER_COLS = [
+  { label: 'Name',        value: (c: Customer) => c.name },
+  { label: 'Phone',       value: (c: Customer) => c.phone ?? '' },
+  { label: 'Email',       value: (c: Customer) => c.email ?? '' },
+  { label: 'Total Spent (RWF)', value: (c: Customer) => c.totalSpent },
+  { label: 'Notes',       value: (c: Customer) => c.notes ?? '' },
+];
 
 // ── Form schema ────────────────────────────────────────────────────────────────
 
@@ -176,16 +185,23 @@ export function CustomersPage() {
   return (
     <div className="p-4 md:p-6 max-w-4xl">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
         <div>
           <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">Customers</h1>
           <p className="text-xs text-slate-400 mt-0.5">
             {data ? `${customers.length} customers` : '…'}
           </p>
         </div>
-        <button className="btn-primary gap-1.5" onClick={() => setModal('add')}>
-          <Plus size={16} /> Add Customer
-        </button>
+        <div className="flex items-center gap-2">
+          {customers.length > 0 && (<>
+            <button onClick={() => printTable(customers, CUSTOMER_COLS, 'Customers')} className="flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"><Printer size={13} /> Print</button>
+            <button onClick={() => exportCSV(customers, CUSTOMER_COLS, 'customers')} className="flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"><Download size={13} /> CSV</button>
+            <button onClick={() => exportPDF(customers, CUSTOMER_COLS, 'Customers')} className="flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"><FileText size={13} /> PDF</button>
+          </>)}
+          <button className="btn-primary gap-1.5" onClick={() => setModal('add')}>
+            <Plus size={16} /> Add Customer
+          </button>
+        </div>
       </div>
 
       {/* Search */}

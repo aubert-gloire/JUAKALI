@@ -6,13 +6,25 @@ import { z } from 'zod';
 import { toast } from 'sonner';
 import {
   CreditCard, ChevronDown, ChevronUp, DollarSign,
-  X, Clock, CheckCircle2, AlertTriangle,
+  X, Clock, CheckCircle2, AlertTriangle, Printer, Download, FileText, Pencil, Trash2,
 } from 'lucide-react';
 import {
   creditsApi,
   type CreditAccount,
   type CreditStatus,
 } from '@/lib/creditsApi';
+import { exportCSV, printTable, exportPDF } from '@/lib/exportUtils';
+
+const CREDIT_COLS = [
+  { label: 'Customer',      value: (a: CreditAccount) => a.customerName },
+  { label: 'Phone',         value: (a: CreditAccount) => a.customerPhone ?? '' },
+  { label: 'Sale #',        value: (a: CreditAccount) => a.saleNumber },
+  { label: 'Total (RWF)',   value: (a: CreditAccount) => a.totalAmount },
+  { label: 'Paid (RWF)',    value: (a: CreditAccount) => a.amountPaid },
+  { label: 'Balance (RWF)', value: (a: CreditAccount) => a.balance },
+  { label: 'Due Date',      value: (a: CreditAccount) => a.dueDate ? new Date(a.dueDate).toLocaleDateString('en-RW') : '' },
+  { label: 'Status',        value: (a: CreditAccount) => a.status },
+];
 import { clsx } from 'clsx';
 
 // ── Status config ─────────────────────────────────────────────────────────────
@@ -135,9 +147,68 @@ function RecordPaymentModal({
   );
 }
 
+// ── Edit credit modal ─────────────────────────────────────────────────────────
+
+function EditCreditModal({ account, onClose }: { account: CreditAccount; onClose: () => void }) {
+  const qc = useQueryClient();
+  const [customerPhone, setCustomerPhone] = useState(account.customerPhone ?? '');
+  const [dueDate, setDueDate] = useState(account.dueDate ? account.dueDate.slice(0, 10) : '');
+  const [notes, setNotes] = useState(account.notes ?? '');
+
+  const mutation = useMutation({
+    mutationFn: () =>
+      creditsApi.update(account._id, {
+        customerPhone: customerPhone.trim() || undefined,
+        dueDate: dueDate || undefined,
+        notes: notes.trim() || undefined,
+      }),
+    onSuccess: () => {
+      toast.success('Credit account updated');
+      qc.invalidateQueries({ queryKey: ['credits'] });
+      onClose();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+      <div className="relative bg-white dark:bg-slate-800 rounded-xl w-full max-w-sm shadow-2xl p-5">
+        <div className="flex items-center gap-3 mb-4">
+          <Pencil size={18} className="text-primary-600 flex-shrink-0" />
+          <div>
+            <p className="font-semibold text-slate-900 dark:text-slate-100">Edit Credit — {account.customerName}</p>
+            <p className="text-xs text-slate-400">Update contact, due date, or notes.</p>
+          </div>
+        </div>
+        <div className="space-y-3">
+          <div>
+            <label className="label text-xs">Customer phone</label>
+            <input className="input w-full mt-1 text-sm" placeholder="+250 7XX XXX XXX" value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} />
+          </div>
+          <div>
+            <label className="label text-xs">Due date</label>
+            <input type="date" className="input w-full mt-1 text-sm" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+          </div>
+          <div>
+            <label className="label text-xs">Notes</label>
+            <textarea className="input resize-none text-sm w-full mt-1 min-h-[56px]" placeholder="Optional note…" value={notes} onChange={(e) => setNotes(e.target.value)} />
+          </div>
+        </div>
+        <div className="flex gap-2 mt-4">
+          <button className="btn-ghost flex-1" onClick={onClose}>Cancel</button>
+          <button className="btn-primary flex-1" disabled={mutation.isPending} onClick={() => mutation.mutate()}>
+            {mutation.isPending ? 'Saving…' : 'Save'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Account row ───────────────────────────────────────────────────────────────
 
-function AccountRow({ account }: { account: CreditAccount }) {
+function AccountRow({ account, onEdit, onDelete }: { account: CreditAccount; onEdit: (a: CreditAccount) => void; onDelete: (a: CreditAccount) => void }) {
   const [open, setOpen] = useState(false);
   const [showPay, setShowPay] = useState(false);
   const isOverdue = account.status === 'overdue';
@@ -285,17 +356,29 @@ function AccountRow({ account }: { account: CreditAccount }) {
               </div>
             )}
 
-            {/* Action */}
-            {account.status !== 'paid' && (
-              <div className="mt-3">
+            {/* Actions */}
+            <div className="mt-3 flex items-center gap-2">
+              {account.status !== 'paid' && (
                 <button
                   className="btn-primary text-xs py-1.5 gap-1.5"
                   onClick={(e) => { e.stopPropagation(); setShowPay(true); }}
                 >
                   <DollarSign size={13} /> Record Payment
                 </button>
-              </div>
-            )}
+              )}
+              <button
+                className="flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-primary-50 hover:text-primary-600 transition-colors"
+                onClick={(e) => { e.stopPropagation(); onEdit(account); }}
+              >
+                <Pencil size={11} /> Edit
+              </button>
+              <button
+                className="flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-100 transition-colors"
+                onClick={(e) => { e.stopPropagation(); onDelete(account); }}
+              >
+                <Trash2 size={11} /> Delete
+              </button>
+            </div>
           </td>
         </tr>
       )}
@@ -321,6 +404,19 @@ const STATUS_FILTERS = [
 export function CreditsPage() {
   const [statusFilter, setStatusFilter] = useState('active');
   const [page, setPage] = useState(1);
+  const [editTarget, setEditTarget] = useState<CreditAccount | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<CreditAccount | null>(null);
+  const qc = useQueryClient();
+
+  const deleteCredit = useMutation({
+    mutationFn: (id: string) => creditsApi.delete(id),
+    onSuccess: () => {
+      toast.success('Credit account deleted');
+      qc.invalidateQueries({ queryKey: ['credits'] });
+      setDeleteTarget(null);
+    },
+    onError: (e) => toast.error(e.message),
+  });
 
   const { data, isLoading } = useQuery({
     queryKey: ['credits', 'list', statusFilter, page],
@@ -348,6 +444,13 @@ export function CreditsPage() {
             )}
           </p>
         </div>
+        {accounts.length > 0 && (
+          <div className="flex gap-2">
+            <button onClick={() => printTable(accounts, CREDIT_COLS, 'Credit Accounts')} className="flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"><Printer size={13} /> Print</button>
+            <button onClick={() => exportCSV(accounts, CREDIT_COLS, 'credit-accounts')} className="flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"><Download size={13} /> CSV</button>
+            <button onClick={() => exportPDF(accounts, CREDIT_COLS, 'Credit Accounts')} className="flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"><FileText size={13} /> PDF</button>
+          </div>
+        )}
       </div>
 
       {/* Status filter */}
@@ -396,7 +499,7 @@ export function CreditsPage() {
               </thead>
               <tbody>
                 {accounts.map((a) => (
-                  <AccountRow key={a._id} account={a} />
+                  <AccountRow key={a._id} account={a} onEdit={setEditTarget} onDelete={setDeleteTarget} />
                 ))}
               </tbody>
             </table>
@@ -422,6 +525,33 @@ export function CreditsPage() {
           >
             Next
           </button>
+        </div>
+      )}
+
+      {editTarget && <EditCreditModal account={editTarget} onClose={() => setEditTarget(null)} />}
+
+      {deleteTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setDeleteTarget(null)} />
+          <div className="relative bg-white dark:bg-slate-800 rounded-xl w-full max-w-sm shadow-2xl p-5">
+            <div className="flex items-center gap-3 mb-4">
+              <Trash2 size={20} className="text-red-500 flex-shrink-0" />
+              <div>
+                <p className="font-semibold text-slate-900 dark:text-slate-100">Delete Credit — {deleteTarget.customerName}?</p>
+                <p className="text-xs text-slate-400">This will permanently remove this credit record.</p>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <button className="btn-ghost flex-1" onClick={() => setDeleteTarget(null)}>Cancel</button>
+              <button
+                className="btn-danger flex-1"
+                disabled={deleteCredit.isPending}
+                onClick={() => deleteCredit.mutate(deleteTarget._id)}
+              >
+                {deleteCredit.isPending ? 'Deleting…' : 'Delete'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

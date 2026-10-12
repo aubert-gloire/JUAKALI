@@ -4,8 +4,18 @@ import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { toast } from 'sonner';
-import { Plus, ShoppingBag, X, Trash2, CheckCircle, ChevronDown, XCircle, Search } from 'lucide-react';
-import { purchasesApi, suppliersApi, productsApi } from '@/lib/inventoryApi';
+import { Plus, ShoppingBag, X, Trash2, CheckCircle, ChevronDown, XCircle, Search, Printer, Download, FileText } from 'lucide-react';
+import { purchasesApi, suppliersApi, productsApi, type PurchaseOrder } from '@/lib/inventoryApi';
+import { exportCSV, printTable, exportPDF } from '@/lib/exportUtils';
+
+const PO_COLS = [
+  { label: 'PO #',          value: (o: PurchaseOrder) => o.orderNumber },
+  { label: 'Date',          value: (o: PurchaseOrder) => new Date(o.createdAt).toLocaleDateString('en-RW') },
+  { label: 'Supplier',      value: (o: PurchaseOrder) => o.supplierName ?? '' },
+  { label: 'Products',      value: (o: PurchaseOrder) => o.lines.map((l) => `${l.productName} ×${l.qty}`).join('; ') },
+  { label: 'Total Cost (RWF)', value: (o: PurchaseOrder) => o.totalCost },
+  { label: 'Status',        value: (o: PurchaseOrder) => o.status },
+];
 import { clsx } from 'clsx';
 
 // ── Schema ────────────────────────────────────────────────────────────────────
@@ -227,6 +237,7 @@ function CreatePOModal({ open, onClose }: { open: boolean; onClose: () => void }
 
 export function PurchasesPage() {
   const [createOpen, setCreateOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<PurchaseOrder | null>(null);
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
   const qc = useQueryClient();
@@ -265,6 +276,16 @@ export function PurchasesPage() {
     onError: (e) => toast.error(e.message),
   });
 
+  const deletePO = useMutation({
+    mutationFn: (id: string) => purchasesApi.delete(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['inventory', 'purchases'] });
+      toast.success('Purchase order deleted');
+      setDeleteTarget(null);
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
   const allOrders = data?.orders ?? [];
   const sq = search.trim().toLowerCase();
   const orders = sq
@@ -278,11 +299,18 @@ export function PurchasesPage() {
 
   return (
     <div className="p-4 md:p-6 space-y-4 max-w-5xl">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">Purchases</h1>
-        <button onClick={() => setCreateOpen(true)} className="btn-primary gap-1.5">
-          <Plus size={15} /> New Purchase Order
-        </button>
+        <div className="flex items-center gap-2">
+          {orders.length > 0 && (<>
+            <button onClick={() => printTable(orders, PO_COLS, 'Purchase Orders')} className="flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"><Printer size={13} /> Print</button>
+            <button onClick={() => exportCSV(orders, PO_COLS, 'purchases')} className="flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"><Download size={13} /> CSV</button>
+            <button onClick={() => exportPDF(orders, PO_COLS, 'Purchase Orders')} className="flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"><FileText size={13} /> PDF</button>
+          </>)}
+          <button onClick={() => setCreateOpen(true)} className="btn-primary gap-1.5">
+            <Plus size={15} /> New Purchase Order
+          </button>
+        </div>
       </div>
 
       {/* Search */}
@@ -358,8 +386,8 @@ export function PurchasesPage() {
                         {new Date(o.createdAt).toLocaleDateString()}
                       </td>
                       <td className="px-4 py-3 text-right">
-                        {(o.status === 'draft' || o.status === 'ordered') && (
-                          <div className="flex items-center justify-end gap-1">
+                        <div className="flex items-center justify-end gap-1">
+                          {(o.status === 'draft' || o.status === 'ordered') && (<>
                             <button
                               onClick={() => receive.mutate(o._id)}
                               disabled={receive.isPending || cancel.isPending}
@@ -376,8 +404,17 @@ export function PurchasesPage() {
                             >
                               <XCircle size={13} /> Cancel
                             </button>
-                          </div>
-                        )}
+                          </>)}
+                          {(o.status === 'draft' || o.status === 'cancelled') && (
+                            <button
+                              onClick={() => setDeleteTarget(o)}
+                              className="flex items-center gap-1 text-xs font-medium text-slate-400 hover:text-red-600 px-2 py-1 rounded hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                              title="Delete this purchase order"
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -401,6 +438,31 @@ export function PurchasesPage() {
       </div>
 
       <CreatePOModal open={createOpen} onClose={() => setCreateOpen(false)} />
+
+      {deleteTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setDeleteTarget(null)} />
+          <div className="relative bg-white dark:bg-slate-800 rounded-xl w-full max-w-sm shadow-2xl p-5">
+            <div className="flex items-center gap-3 mb-4">
+              <Trash2 size={20} className="text-red-500 flex-shrink-0" />
+              <div>
+                <p className="font-semibold text-slate-900 dark:text-slate-100">Delete {deleteTarget.orderNumber}?</p>
+                <p className="text-xs text-slate-400">This cannot be undone.</p>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <button className="btn-ghost flex-1" onClick={() => setDeleteTarget(null)}>Cancel</button>
+              <button
+                className="btn-danger flex-1"
+                disabled={deletePO.isPending}
+                onClick={() => deletePO.mutate(deleteTarget._id)}
+              >
+                {deletePO.isPending ? 'Deleting…' : 'Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

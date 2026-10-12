@@ -12,6 +12,7 @@ export interface TenantContext {
   membershipId: Types.ObjectId;
   trialEndsAt?: Date;
   accessExpiry?: Date;
+  allowNegativeStock: boolean;
 }
 
 declare global {
@@ -78,6 +79,7 @@ export async function requireTenant(
       membershipId: membership._id,
       trialEndsAt: shop.trialEndsAt,
       accessExpiry: shop.accessExpiry,
+      allowNegativeStock: shop.allowNegativeStock,
     };
 
     next();

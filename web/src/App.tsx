@@ -24,6 +24,7 @@ import { ReportsPage } from '@/features/reports/ReportsPage';
 import { SettingsPage } from '@/features/settings/SettingsPage';
 import { MorePage } from '@/features/more/MorePage';
 import { AiPage } from '@/features/ai/AiPage';
+import { AlertsPage } from '@/features/alerts/AlertsPage';
 
 function AppSkeleton() {
   return (
@@ -61,6 +62,7 @@ export default function App() {
                 <Route path="/settings"   element={<SettingsPage />} />
                 <Route path="/more"       element={<MorePage />} />
                 <Route path="/ai"         element={<AiPage />} />
+                <Route path="/alerts"    element={<AlertsPage />} />
               </Route>
             </Route>
 

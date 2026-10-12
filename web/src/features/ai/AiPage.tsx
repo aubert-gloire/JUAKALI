@@ -3,6 +3,7 @@ import { useMutation } from '@tanstack/react-query';
 import { aiApi, type ChatMessage } from '@/lib/aiApi';
 import { clsx } from 'clsx';
 import { Send, Bot, User, Sparkles, RefreshCw } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
 
 // ── Suggested prompts ──────────────────────────────────────────────────────────
 
@@ -40,12 +41,29 @@ function MessageBubble({ msg }: { msg: ChatMessage }) {
             : 'bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 rounded-tl-sm shadow-sm border border-slate-100 dark:border-slate-700',
         )}
       >
-        {msg.text.split('\n').map((line, i) => (
-          <span key={i}>
-            {line}
-            {i < msg.text.split('\n').length - 1 && <br />}
-          </span>
-        ))}
+        {isUser ? (
+          <span>{msg.text}</span>
+        ) : (
+          <ReactMarkdown
+            components={{
+              h1: ({ children }) => <p className="font-bold text-base mb-1">{children}</p>,
+              h2: ({ children }) => <p className="font-bold text-sm mb-1 mt-2">{children}</p>,
+              h3: ({ children }) => <p className="font-semibold text-sm mb-1 mt-2">{children}</p>,
+              p:  ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
+              ul: ({ children }) => <ul className="list-disc pl-4 mb-2 space-y-0.5">{children}</ul>,
+              ol: ({ children }) => <ol className="list-decimal pl-4 mb-2 space-y-0.5">{children}</ol>,
+              li: ({ children }) => <li className="leading-snug">{children}</li>,
+              strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
+              em: ({ children }) => <em className="italic">{children}</em>,
+              code: ({ children }) => (
+                <code className="bg-slate-100 dark:bg-slate-700 px-1 py-0.5 rounded text-xs font-mono">{children}</code>
+              ),
+              hr: () => <hr className="border-slate-200 dark:border-slate-600 my-2" />,
+            }}
+          >
+            {msg.text}
+          </ReactMarkdown>
+        )}
       </div>
     </div>
   );

@@ -47,7 +47,8 @@
     "credits": "Credits",
     "stock": "Stock",
     "settings": "Settings",
-    "aiAssistant": "AI Assistant"
+    "aiAssistant": "AI Assistant",
+    "alerts": "Alerts"
   },
   "dashboard": {
     "title": "Dashboard",

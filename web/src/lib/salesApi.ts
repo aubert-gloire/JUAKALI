@@ -122,13 +122,21 @@ export type SalesListParams = {
   to?: string;
 };
 
+export type SaleEditBody = {
+  customerName?: string;
+  customerPhone?: string;
+  paymentMethod?: PaymentMethod;
+  notes?: string;
+};
+
 export const salesApi = {
   list: (params?: SalesListParams) =>
     api.get<{ sales: Sale[]; total: number; page: number; pages: number }>(
       `/sales${qs(params as Record<string, string | number | boolean | undefined>)}`,
     ),
   get: (id: string) => api.get<{ sale: Sale }>(`/sales/${id}`),
-  complete: (body: CompleteSaleBody) => api.post<{ sale: Sale }>('/sales', body),
+  complete: (body: CompleteSaleBody) => api.post<{ sale: Sale; receiptUrl: string }>('/sales', body),
+  update: (id: string, body: SaleEditBody) => api.patch<{ sale: Sale }>(`/sales/${id}`, body),
   void: (id: string, reason: string) =>
     api.post<{ sale: Sale }>(`/sales/${id}/void`, { reason }),
 };

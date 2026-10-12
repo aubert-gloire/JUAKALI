@@ -4,8 +4,17 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { toast } from 'sonner';
-import { Plus, Edit2, Truck, X, Phone, Mail, PowerOff } from 'lucide-react';
+import { Plus, Edit2, Truck, X, Phone, Mail, PowerOff, Printer, Download, FileText } from 'lucide-react';
 import { suppliersApi, Supplier } from '@/lib/inventoryApi';
+import { exportCSV, printTable, exportPDF } from '@/lib/exportUtils';
+
+const SUPPLIER_COLS = [
+  { label: 'Name',    value: (s: Supplier) => s.name },
+  { label: 'Phone',   value: (s: Supplier) => s.phone ?? '' },
+  { label: 'Email',   value: (s: Supplier) => s.email ?? '' },
+  { label: 'Address', value: (s: Supplier) => s.address ?? '' },
+  { label: 'Notes',   value: (s: Supplier) => s.notes ?? '' },
+];
 
 // ── Schema ────────────────────────────────────────────────────────────────────
 
@@ -117,11 +126,18 @@ export function SuppliersPage() {
 
   return (
     <div className="p-4 md:p-6 space-y-4 max-w-4xl">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">Suppliers</h1>
-        <button onClick={() => { setEditing(null); setModalOpen(true); }} className="btn-primary gap-1.5">
-          <Plus size={15} /> Add Supplier
-        </button>
+        <div className="flex items-center gap-2">
+          {suppliers.length > 0 && (<>
+            <button onClick={() => printTable(suppliers, SUPPLIER_COLS, 'Suppliers')} className="flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"><Printer size={13} /> Print</button>
+            <button onClick={() => exportCSV(suppliers, SUPPLIER_COLS, 'suppliers')} className="flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"><Download size={13} /> CSV</button>
+            <button onClick={() => exportPDF(suppliers, SUPPLIER_COLS, 'Suppliers')} className="flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"><FileText size={13} /> PDF</button>
+          </>)}
+          <button onClick={() => { setEditing(null); setModalOpen(true); }} className="btn-primary gap-1.5">
+            <Plus size={15} /> Add Supplier
+          </button>
+        </div>
       </div>
 
       <div className="card p-0 overflow-hidden">

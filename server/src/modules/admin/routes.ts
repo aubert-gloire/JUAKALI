@@ -6,6 +6,7 @@ import { asyncHandler } from '../../utils/asyncHandler';
 import { Errors } from '../../utils/errors';
 import { AccessToken, TOKEN_DURATION } from '../../models/AccessToken';
 import { Shop } from '../../models/Shop';
+import { Membership } from '../../models/Membership';
 import type { TokenPlan } from '../../models/AccessToken';
 import type { Request, Response, NextFunction } from 'express';
 
@@ -159,5 +160,43 @@ adminRouter.patch(
     await shop.save();
 
     res.json({ ok: true, accessExpiry: shop.accessExpiry });
+  }),
+);
+
+// ── PATCH /api/admin/shops/:id/revoke ────────────────────────────────────────
+
+adminRouter.patch(
+  '/shops/:id/revoke',
+  requireAdminAuth,
+  asyncHandler(async (req, res) => {
+    const shop = await Shop.findById(req.params.id);
+    if (!shop) throw Errors.notFound('Shop');
+
+    const past = new Date(Date.now() - 1000);
+    shop.accessExpiry = past;
+    shop.trialEndsAt = past;
+    await shop.save();
+
+    res.json({ ok: true });
+  }),
+);
+
+// ── DELETE /api/admin/shops/:id ───────────────────────────────────────────────
+
+adminRouter.delete(
+  '/shops/:id',
+  requireAdminAuth,
+  asyncHandler(async (req, res) => {
+    const shop = await Shop.findById(req.params.id);
+    if (!shop) throw Errors.notFound('Shop');
+
+    await Membership.deleteMany({ shopId: req.params.id });
+    await AccessToken.updateMany(
+      { shopId: req.params.id },
+      { $set: { shopId: null, redeemedAt: null } },
+    );
+    await Shop.findByIdAndDelete(req.params.id);
+
+    res.json({ ok: true });
   }),
 );

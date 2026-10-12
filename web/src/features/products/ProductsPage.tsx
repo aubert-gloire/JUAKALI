@@ -5,9 +5,21 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { toast } from 'sonner';
 import {
-  Plus, Search, Upload, Edit2, Package, Sliders, X, ChevronDown, PowerOff, TrendingUp,
+  Plus, Search, Upload, Edit2, Package, Sliders, X, ChevronDown, PowerOff, TrendingUp, Printer, Download, FileText,
 } from 'lucide-react';
 import { categoriesApi, productsApi, type TopSeller, Category, Product } from '@/lib/inventoryApi';
+import { exportCSV, printTable, exportPDF } from '@/lib/exportUtils';
+
+const PRODUCT_COLS = [
+  { label: 'Name',           value: (p: Product) => p.name },
+  { label: 'SKU',            value: (p: Product) => p.sku },
+  { label: 'Category',       value: (p: Product) => typeof p.categoryId === 'object' && p.categoryId ? p.categoryId.name : '' },
+  { label: 'Stock',          value: (p: Product) => p.stockQty },
+  { label: 'Unit',           value: (p: Product) => p.unit },
+  { label: 'Cost (RWF)',     value: (p: Product) => p.costPrice },
+  { label: 'Price (RWF)',    value: (p: Product) => p.sellingPrice },
+  { label: 'Reorder Level',  value: (p: Product) => p.reorderLevel },
+];
 import { clsx } from 'clsx';
 
 // ── Schemas ───────────────────────────────────────────────────────────────────
@@ -357,7 +369,12 @@ export function ProductsPage() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">Products</h1>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          {(prodQ.data?.products.length ?? 0) > 0 && (<>
+            <button onClick={() => printTable(prodQ.data!.products, PRODUCT_COLS, 'Products')} className="flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"><Printer size={13} /> Print</button>
+            <button onClick={() => exportCSV(prodQ.data!.products, PRODUCT_COLS, 'products')} className="flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"><Download size={13} /> CSV</button>
+            <button onClick={() => exportPDF(prodQ.data!.products, PRODUCT_COLS, 'Products')} className="flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"><FileText size={13} /> PDF</button>
+          </>)}
           <button onClick={() => setCsvOpen(true)} className="btn-secondary gap-1.5">
             <Upload size={15} /> Import CSV
           </button>

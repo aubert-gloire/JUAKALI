@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { toast } from 'sonner';
-import { Copy, LogOut, Plus, RefreshCw, Key, ShoppingBag } from 'lucide-react';
+import { Copy, LogOut, Plus, RefreshCw, Key, ShoppingBag, Settings, AlertTriangle, Trash2, CalendarPlus } from 'lucide-react';
 import { JkLogo } from '@/components/JkLogo';
 import { clsx } from 'clsx';
 
@@ -147,6 +147,188 @@ function StatusBadge({ status }: { status: ShopRow['status'] }) {
   );
 }
 
+// ── Shop Manage Modal ─────────────────────────────────────────────────────────
+
+function ShopManageModal({
+  shop,
+  onClose,
+  onDone,
+}: {
+  shop: ShopRow;
+  onClose: () => void;
+  onDone: () => void;
+}) {
+  const [grantDays, setGrantDays] = useState(30);
+  const [grantLoading, setGrantLoading] = useState(false);
+  const [revokeLoading, setRevokeLoading] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
+  async function handleGrant(e: React.FormEvent) {
+    e.preventDefault();
+    setGrantLoading(true);
+    try {
+      await adminFetch(`/shops/${shop._id}/grant`, {
+        method: 'PATCH',
+        body: JSON.stringify({ days: grantDays }),
+      });
+      toast.success(`Granted ${grantDays} days to ${shop.name}`);
+      onDone();
+    } catch (err) { toast.error((err as Error).message); }
+    finally { setGrantLoading(false); }
+  }
+
+  async function handleRevoke() {
+    setRevokeLoading(true);
+    try {
+      await adminFetch(`/shops/${shop._id}/revoke`, { method: 'PATCH' });
+      toast.success(`Access revoked for ${shop.name}`);
+      onDone();
+    } catch (err) { toast.error((err as Error).message); }
+    finally { setRevokeLoading(false); }
+  }
+
+  async function handleDelete() {
+    setDeleteLoading(true);
+    try {
+      await adminFetch(`/shops/${shop._id}`, { method: 'DELETE' });
+      toast.success(`${shop.name} deleted`);
+      onDone();
+    } catch (err) { toast.error((err as Error).message); }
+    finally { setDeleteLoading(false); }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl w-full max-w-sm flex flex-col max-h-[90vh]">
+        {/* Header */}
+        <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-700 flex-shrink-0">
+          <p className="text-xs text-slate-400 uppercase tracking-wide font-medium mb-0.5">Managing shop</p>
+          <h2 className="font-bold text-slate-900 dark:text-slate-100 text-base">{shop.name}</h2>
+          <p className="text-xs text-slate-400">{shop.location} · <StatusBadge status={shop.status} /></p>
+        </div>
+
+        <div className="p-5 space-y-4 overflow-y-auto flex-1">
+          {/* ── Grant / Extend ── */}
+          <div className="rounded-xl border border-slate-100 dark:border-slate-700 p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <CalendarPlus size={15} className="text-primary-600" />
+              <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">Extend Access</p>
+            </div>
+            {/* Presets */}
+            <div className="flex gap-1.5 flex-wrap mb-3">
+              {[
+                { label: '30 days', days: 30 },
+                { label: '90 days', days: 90 },
+                { label: '1 year', days: 365 },
+                { label: 'Lifetime', days: 36500 },
+              ].map((p) => (
+                <button
+                  key={p.days}
+                  type="button"
+                  onClick={() => setGrantDays(p.days)}
+                  className={clsx(
+                    'px-3 py-1 rounded-lg text-xs font-semibold border transition-colors',
+                    grantDays === p.days
+                      ? 'bg-primary-600 border-primary-600 text-white'
+                      : 'border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:border-primary-400 hover:text-primary-600 dark:hover:text-primary-400',
+                  )}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+            <form onSubmit={handleGrant} className="flex gap-2 items-end">
+              <div className="flex-1">
+                <label className="label text-xs">Days to add</label>
+                <input
+                  type="number"
+                  min={1}
+                  value={grantDays}
+                  onChange={(e) => setGrantDays(Number(e.target.value))}
+                  className="input mt-1 w-full text-center"
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={grantLoading}
+                className="btn-primary disabled:opacity-50 whitespace-nowrap"
+              >
+                {grantLoading ? 'Saving…' : 'Grant Days'}
+              </button>
+            </form>
+            {shop.accessExpiry && (
+              <p className="text-xs text-slate-400 mt-2">
+                Current expiry: {new Date(shop.accessExpiry).toLocaleDateString('en-RW', { day: 'numeric', month: 'short', year: 'numeric' })}
+              </p>
+            )}
+          </div>
+
+          {/* ── Revoke ── */}
+          <div className="rounded-xl border border-amber-100 dark:border-amber-900/40 bg-amber-50 dark:bg-amber-900/10 p-4">
+            <div className="flex items-center gap-2 mb-1">
+              <AlertTriangle size={15} className="text-amber-600" />
+              <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">Revoke Access</p>
+            </div>
+            <p className="text-xs text-amber-700 dark:text-amber-400 mb-3">
+              Immediately locks the shop out. Their data is safe — they can pay and get access back.
+            </p>
+            <button
+              onClick={handleRevoke}
+              disabled={revokeLoading}
+              className="w-full py-2 rounded-lg text-sm font-semibold bg-amber-500 hover:bg-amber-600 text-white transition-colors disabled:opacity-50"
+            >
+              {revokeLoading ? 'Revoking…' : 'Revoke Access Now'}
+            </button>
+          </div>
+
+          {/* ── Delete ── */}
+          <div className="rounded-xl border border-red-100 dark:border-red-900/40 bg-red-50 dark:bg-red-900/10 p-4">
+            <div className="flex items-center gap-2 mb-1">
+              <Trash2 size={15} className="text-red-600" />
+              <p className="text-sm font-semibold text-red-800 dark:text-red-300">Delete Shop</p>
+            </div>
+            <p className="text-xs text-red-700 dark:text-red-400 mb-3">
+              Permanently removes the shop and all memberships. This cannot be undone.
+            </p>
+            {!confirmDelete ? (
+              <button
+                onClick={() => setConfirmDelete(true)}
+                className="w-full py-2 rounded-lg text-sm font-semibold border border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
+              >
+                Delete Shop…
+              </button>
+            ) : (
+              <div className="space-y-2">
+                <p className="text-xs font-semibold text-red-700 dark:text-red-400 text-center">
+                  Are you sure? Type to confirm:
+                </p>
+                <button
+                  onClick={handleDelete}
+                  disabled={deleteLoading}
+                  className="w-full py-2 rounded-lg text-sm font-bold bg-red-600 hover:bg-red-700 text-white transition-colors disabled:opacity-50"
+                >
+                  {deleteLoading ? 'Deleting…' : `Yes, delete "${shop.name}"`}
+                </button>
+                <button
+                  onClick={() => setConfirmDelete(false)}
+                  className="w-full py-1.5 text-xs text-slate-400 hover:text-slate-600 transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="px-5 pb-5 pt-2 border-t border-slate-100 dark:border-slate-700 flex-shrink-0">
+          <button onClick={onClose} className="btn btn-secondary w-full">Close</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Dashboard ─────────────────────────────────────────────────────────────────
 
 function Dashboard({ onLogout }: { onLogout: () => void }) {
@@ -159,8 +341,7 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
   const [genNotes, setGenNotes] = useState('');
   const [generating, setGenerating] = useState(false);
   const [tokenFilter, setTokenFilter] = useState<'all' | 'available' | 'redeemed'>('all');
-  const [grantShopId, setGrantShopId] = useState('');
-  const [grantDays, setGrantDays] = useState(30);
+  const [managingShop, setManagingShop] = useState<ShopRow | null>(null);
 
   async function loadTokens() {
     setLoadingData(true);
@@ -201,19 +382,6 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
       loadTokens();
     } catch (err) { toast.error((err as Error).message); }
     finally { setGenerating(false); }
-  }
-
-  async function handleGrant(e: React.FormEvent) {
-    e.preventDefault();
-    try {
-      await adminFetch(`/shops/${grantShopId}/grant`, {
-        method: 'PATCH',
-        body: JSON.stringify({ days: grantDays }),
-      });
-      toast.success(`Granted ${grantDays} days`);
-      setGrantShopId('');
-      loadShops();
-    } catch (err) { toast.error((err as Error).message); }
   }
 
   function copyCode(code: string) {
@@ -402,39 +570,6 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
         {/* ── Shops tab ────────────────────────────────────────────────────────── */}
         {tab === 'shops' && (
           <div className="space-y-5">
-            {/* Manual grant */}
-            <div className="card">
-              <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-200 mb-4">Manual Access Grant</h2>
-              <form onSubmit={handleGrant} className="flex flex-wrap gap-3 items-end">
-                <div className="flex-1 min-w-52">
-                  <label className="label">Shop ID</label>
-                  <input
-                    type="text"
-                    value={grantShopId}
-                    onChange={(e) => setGrantShopId(e.target.value)}
-                    placeholder="MongoDB ObjectId (copy from table below)"
-                    className="input mt-1 w-full font-mono text-xs"
-                  />
-                </div>
-                <div>
-                  <label className="label">Days</label>
-                  <input
-                    type="number" min={1}
-                    value={grantDays}
-                    onChange={(e) => setGrantDays(Number(e.target.value))}
-                    className="input mt-1 w-24 text-center"
-                  />
-                </div>
-                <button
-                  type="submit"
-                  disabled={!grantShopId.trim()}
-                  className="btn-primary disabled:opacity-50"
-                >
-                  Grant Access
-                </button>
-              </form>
-            </div>
-
             {/* Shops list */}
             <div className="card p-0 overflow-hidden">
               <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 dark:border-slate-800">
@@ -450,15 +585,14 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
                       <th className="px-4 py-3 text-xs font-medium text-slate-500 uppercase tracking-wide">Shop</th>
                       <th className="px-4 py-3 text-xs font-medium text-slate-500 uppercase tracking-wide">Plan</th>
                       <th className="px-4 py-3 text-xs font-medium text-slate-500 uppercase tracking-wide">Status</th>
-                      <th className="px-4 py-3 text-xs font-medium text-slate-500 uppercase tracking-wide">Trial ends</th>
                       <th className="px-4 py-3 text-xs font-medium text-slate-500 uppercase tracking-wide">Access until</th>
-                      <th className="px-4 py-3 text-xs font-medium text-slate-500 uppercase tracking-wide">ID</th>
+                      <th className="px-4 py-3 text-xs font-medium text-slate-500 uppercase tracking-wide">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
                     {shops.length === 0 && (
                       <tr>
-                        <td colSpan={6} className="px-4 py-10 text-center text-slate-400 text-sm">
+                        <td colSpan={5} className="px-4 py-10 text-center text-slate-400 text-sm">
                           No shops registered yet
                         </td>
                       </tr>
@@ -471,15 +605,13 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
                         </td>
                         <td className="px-4 py-3 text-slate-500 capitalize text-xs">{s.plan}</td>
                         <td className="px-4 py-3"><StatusBadge status={s.status} /></td>
-                        <td className="px-4 py-3 text-slate-400 text-xs">{fmtDate(s.trialEndsAt)}</td>
                         <td className="px-4 py-3 text-slate-400 text-xs">{fmtDate(s.accessExpiry)}</td>
                         <td className="px-4 py-3">
                           <button
-                            onClick={() => { navigator.clipboard.writeText(s._id); toast.success('ID copied'); }}
-                            className="font-mono text-xs text-slate-400 hover:text-primary-600 dark:hover:text-primary-400 flex items-center gap-1 transition-colors"
-                            title="Copy full ID"
+                            onClick={() => setManagingShop(s)}
+                            className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-primary-50 dark:hover:bg-primary-900/20 hover:text-primary-600 dark:hover:text-primary-400 transition-colors"
                           >
-                            {s._id.slice(-8)} <Copy size={10} />
+                            <Settings size={12} /> Manage
                           </button>
                         </td>
                       </tr>
@@ -489,6 +621,15 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
               </div>
             </div>
           </div>
+        )}
+
+        {/* ── Manage modal ─────────────────────────────────────────────────────── */}
+        {managingShop && (
+          <ShopManageModal
+            shop={managingShop}
+            onClose={() => setManagingShop(null)}
+            onDone={() => { setManagingShop(null); loadShops(); }}
+          />
         )}
       </div>
     </div>

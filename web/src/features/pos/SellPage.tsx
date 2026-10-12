@@ -4,7 +4,7 @@ import { toast } from 'sonner';
 import {
   Search, X, Plus, Minus, Trash2, ShoppingCart,
   Banknote, Smartphone, CreditCard, AlertCircle, CheckCircle2, Tag,
-  Printer, MessageCircle, CheckCircle, Download,
+  Printer, MessageCircle, CheckCircle, Download, Link,
 } from 'lucide-react';
 import { productsApi, categoriesApi, type Product, type Category } from '@/lib/inventoryApi';
 import { salesApi, customersApi, type PaymentMethod, type Sale, type Customer, PAYMENT_LABELS } from '@/lib/salesApi';
@@ -478,11 +478,12 @@ async function generateReceiptPDF(sale: Sale) {
 
 // ── Receipt modal ─────────────────────────────────────────────────────────────
 
-function ReceiptModal({ sale, onClose }: { sale: Sale; onClose: () => void }) {
+function ReceiptModal({ sale, receiptUrl, onClose }: { sale: Sale; receiptUrl?: string; onClose: () => void }) {
   const shopName = 'JUAKALI STORE';
   const shopLocation = 'Kigali, Rwanda';
   const shopPhone = '+250 788 268 061';
   const [downloading, setDownloading] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   const dateStr = new Date(sale.createdAt).toLocaleString('en-RW', {
     day: 'numeric', month: 'short', year: 'numeric',
@@ -520,9 +521,13 @@ function ReceiptModal({ sale, onClose }: { sale: Sale; onClose: () => void }) {
       sale.customerName ? `\n👤 ${sale.customerName}${sale.customerPhone ? `  |  ${sale.customerPhone}` : ''}` : '',
       d,
       `🙏 Thank you for your business!`,
+      receiptUrl ? `\n🔗 View receipt: ${receiptUrl}` : '',
     ].filter(Boolean).join('\n');
 
-    window.open(`https://wa.me/?text=${encodeURIComponent(lines)}`, '_blank');
+    const waTarget = sale.customerPhone
+      ? `https://wa.me/${sale.customerPhone.replace(/\D/g, '')}?text=${encodeURIComponent(lines)}`
+      : `https://wa.me/?text=${encodeURIComponent(lines)}`;
+    window.open(waTarget, '_blank');
   };
 
   return (
@@ -685,14 +690,28 @@ function ReceiptModal({ sale, onClose }: { sale: Sale; onClose: () => void }) {
           </div>
 
           {/* ── Action buttons — screen only ─────────────────────────────────── */}
-          <div className="no-print px-4 pb-5 pt-3 grid grid-cols-4 gap-2 border-t border-slate-100 dark:border-slate-800">
+          <div className="no-print px-4 pb-5 pt-3 grid grid-cols-5 gap-1.5 border-t border-slate-100 dark:border-slate-800">
             <button
               onClick={handleWhatsApp}
               className="flex flex-col items-center gap-1 py-2.5 rounded-xl bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/40 transition-colors"
             >
-              <MessageCircle size={17} />
+              <MessageCircle size={16} />
               <span className="text-[9px] font-semibold">WhatsApp</span>
             </button>
+            {receiptUrl && (
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(receiptUrl).then(() => {
+                    setCopied(true);
+                    setTimeout(() => setCopied(false), 2000);
+                  });
+                }}
+                className="flex flex-col items-center gap-1 py-2.5 rounded-xl bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400 hover:bg-purple-100 dark:hover:bg-purple-900/40 transition-colors"
+              >
+                <Link size={16} />
+                <span className="text-[9px] font-semibold">{copied ? 'Copied!' : 'Copy Link'}</span>
+              </button>
+            )}
             <button
               onClick={handleDownload}
               disabled={downloading}
@@ -700,7 +719,7 @@ function ReceiptModal({ sale, onClose }: { sale: Sale; onClose: () => void }) {
             >
               {downloading
                 ? <div className="h-4 w-4 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" />
-                : <Download size={17} />
+                : <Download size={16} />
               }
               <span className="text-[9px] font-semibold">PDF</span>
             </button>
@@ -708,14 +727,14 @@ function ReceiptModal({ sale, onClose }: { sale: Sale; onClose: () => void }) {
               onClick={handlePrint}
               className="flex flex-col items-center gap-1 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
             >
-              <Printer size={17} />
+              <Printer size={16} />
               <span className="text-[9px] font-semibold">Print</span>
             </button>
             <button
               onClick={onClose}
               className="flex flex-col items-center gap-1 py-2.5 rounded-xl bg-primary-600 text-white hover:bg-primary-700 transition-colors"
             >
-              <CheckCircle2 size={17} />
+              <CheckCircle2 size={16} />
               <span className="text-[9px] font-semibold">Done</span>
             </button>
           </div>
@@ -743,6 +762,7 @@ export function SellPage() {
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [showMobileCart, setShowMobileCart] = useState(false);
   const [receiptSale, setReceiptSale] = useState<Sale | null>(null);
+  const [receiptUrl, setReceiptUrl] = useState<string | undefined>();
 
   // Data
   const catsQ = useQuery({
@@ -768,6 +788,7 @@ export function SellPage() {
     mutationFn: salesApi.complete,
     onSuccess: (data) => {
       setReceiptSale(data.sale);
+      setReceiptUrl(data.receiptUrl);
       setCart([]);
       setDiscount(0);
       setSelectedCustomer(null);
@@ -994,7 +1015,7 @@ export function SellPage() {
         </div>
       </div>
 
-      {/* Charge button */}
+      {/* Sell button */}
       <div className="p-3">
         <button
           onClick={() => setShowPayment(true)}
@@ -1007,7 +1028,7 @@ export function SellPage() {
               Processing…
             </span>
           ) : (
-            `Charge RWF ${total.toLocaleString()}`
+            `Sell · RWF ${total.toLocaleString()}`
           )}
         </button>
       </div>
@@ -1152,7 +1173,8 @@ export function SellPage() {
       {receiptSale && (
         <ReceiptModal
           sale={receiptSale}
-          onClose={() => setReceiptSale(null)}
+          receiptUrl={receiptUrl}
+          onClose={() => { setReceiptSale(null); setReceiptUrl(undefined); }}
         />
       )}
     </div>

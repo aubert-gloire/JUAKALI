@@ -4,8 +4,16 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { toast } from 'sonner';
-import { Receipt, Plus, Trash2, X, AlertCircle, Pencil, TrendingUp } from 'lucide-react';
+import { Receipt, Plus, Trash2, X, AlertCircle, Pencil, TrendingUp, Printer, Download, FileText } from 'lucide-react';
 import type { Expense } from '@/lib/salesApi';
+import { exportCSV, printTable, exportPDF } from '@/lib/exportUtils';
+
+const EXPENSE_COLS = [
+  { label: 'Category',       value: (e: Expense) => e.category },
+  { label: 'Description',    value: (e: Expense) => e.description },
+  { label: 'Date',           value: (e: Expense) => new Date(e.date).toLocaleDateString('en-RW') },
+  { label: 'Amount (RWF)',   value: (e: Expense) => e.amount },
+];
 import {
   expensesApi,
   type ExpenseBody,
@@ -329,7 +337,7 @@ export function ExpensesPage() {
   return (
     <div className="p-4 md:p-6 max-w-4xl">
       {/* Header */}
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
         <div>
           <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">Expenses</h1>
           <p className="text-xs text-slate-400 mt-0.5">
@@ -337,9 +345,16 @@ export function ExpensesPage() {
             {expenses.length > 0 && ` · RWF ${grandTotal.toLocaleString()} this page`}
           </p>
         </div>
-        <button className="btn-primary gap-1.5" onClick={() => setShowAdd(true)}>
-          <Plus size={16} /> Record Expense
-        </button>
+        <div className="flex items-center gap-2">
+          {expenses.length > 0 && (<>
+            <button onClick={() => printTable(expenses, EXPENSE_COLS, 'Expenses')} className="flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"><Printer size={13} /> Print</button>
+            <button onClick={() => exportCSV(expenses, EXPENSE_COLS, 'expenses')} className="flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"><Download size={13} /> CSV</button>
+            <button onClick={() => exportPDF(expenses, EXPENSE_COLS, 'Expenses')} className="flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"><FileText size={13} /> PDF</button>
+          </>)}
+          <button className="btn-primary gap-1.5" onClick={() => setShowAdd(true)}>
+            <Plus size={16} /> Record Expense
+          </button>
+        </div>
       </div>
 
       {/* Ranked breakdown */}

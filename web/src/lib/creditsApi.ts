@@ -70,4 +70,6 @@ export const creditsApi = {
     api.patch<{ account: CreditAccount }>(`/credits/${id}`, body),
   recordPayment: (id: string, body: { amount: number; notes?: string }) =>
     api.post<{ account: CreditAccount }>(`/credits/${id}/payment`, body),
+  delete: (id: string) =>
+    api.delete<{ ok: boolean }>(`/credits/${id}`),
 };

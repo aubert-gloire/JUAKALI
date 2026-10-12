@@ -168,4 +168,6 @@ export const purchasesApi = {
     api.patch<{ order: PurchaseOrder }>(`/inventory/purchases/${id}`, body),
   receive: (id: string) =>
     api.post<{ order: PurchaseOrder }>(`/inventory/purchases/${id}/receive`, {}),
+  delete: (id: string) =>
+    api.delete<{ ok: boolean }>(`/inventory/purchases/${id}`),
 };

@@ -13,6 +13,8 @@ import { Customer } from '../../models/Customer';
 import { Expense } from '../../models/Expense';
 import { CreditAccount } from '../../models/CreditAccount';
 import { CompleteSaleSchema, VoidSaleSchema, CustomerSchema, ExpenseSchema } from './validation';
+import { signReceiptToken } from '../../lib/receiptToken';
+import { config } from '../../config';
 
 export const salesRouter = Router();
 
@@ -188,14 +190,25 @@ salesRouter.post(
     });
     const productMap = new Map(products.map((p) => [p._id.toString(), p]));
 
-    // Validate stock and build sale items
+    // Validate and atomically decrement stock — prevents overselling under concurrent requests.
+    // findOneAndUpdate with stockQty >= qty is a single atomic operation in MongoDB;
+    // if two requests race for the last unit, exactly one gets the updated doc, the other gets null.
     const saleItems = [];
     for (const item of body.items) {
       const product = productMap.get(item.productId);
       if (!product) throw Errors.notFound(`Product ${item.productId}`);
-      if (product.stockQty < item.qty) {
-        throw Errors.negativeStock(product.name);
-      }
+
+      const stockFilter = req.tenant!.allowNegativeStock
+        ? { _id: product._id, ...shopFilter(req) }
+        : { _id: product._id, ...shopFilter(req), stockQty: { $gte: item.qty } };
+
+      const updated = await Product.findOneAndUpdate(
+        stockFilter,
+        { $inc: { stockQty: -item.qty } },
+        { new: false }, // return the doc as it was before decrement (gives us qtyBefore)
+      );
+      if (!updated) throw Errors.negativeStock(product.name);
+
       saleItems.push({
         productId: product._id,
         productName: product.name,
@@ -205,6 +218,7 @@ salesRouter.post(
         unitPrice: product.sellingPrice,
         totalCost: item.qty * product.costPrice,
         totalPrice: item.qty * product.sellingPrice,
+        _qtyBefore: updated.stockQty, // used for the ledger entry below
       });
     }
 
@@ -224,7 +238,7 @@ salesRouter.post(
     const sale = await Sale.create({
       ...shopFilter(req),
       saleNumber,
-      items: saleItems,
+      items: saleItems.map(({ _qtyBefore: _q, ...rest }) => rest),
       subtotal,
       discountAmount,
       total,
@@ -240,16 +254,14 @@ salesRouter.post(
       notes: body.notes,
     });
 
-    // Decrement stock + create movements
+    // Write stock movement ledger entries (stock already decremented above)
     for (const item of saleItems) {
-      const product = productMap.get(item.productId.toString())!;
-      const qtyBefore = product.stockQty;
+      const qtyBefore = item._qtyBefore;
       const qtyAfter = qtyBefore - item.qty;
-      await Product.updateOne({ _id: product._id }, { $inc: { stockQty: -item.qty } });
       await StockMovement.create({
         shopId: req.tenant!.shopId,
-        productId: product._id,
-        productName: product.name,
+        productId: item.productId,
+        productName: item.productName,
         type: 'sale',
         qty: -item.qty,
         qtyBefore,
@@ -292,7 +304,10 @@ salesRouter.post(
       });
     }
 
-    res.status(201).json({ sale });
+    const receiptToken = signReceiptToken(sale._id.toString());
+    const receiptUrl = `${config.APP_ORIGIN.replace(/\/$/, '')}/api/receipts/${sale._id}?t=${receiptToken}`;
+
+    res.status(201).json({ sale, receiptUrl });
   }),
 );
 
@@ -305,21 +320,22 @@ salesRouter.post(
     if (!sale) throw Errors.notFound('Sale');
     if (sale.status === 'voided') throw Errors.validation('Sale is already voided');
 
-    // Restore stock
+    // Restore stock — use findOneAndUpdate so qtyBefore in the ledger is accurate
     for (const item of sale.items) {
-      const product = await Product.findById(item.productId);
-      if (!product) continue;
-      const qtyBefore = product.stockQty;
-      const qtyAfter = qtyBefore + item.qty;
-      await Product.updateOne({ _id: product._id }, { $inc: { stockQty: item.qty } });
+      const before = await Product.findOneAndUpdate(
+        { _id: item.productId },
+        { $inc: { stockQty: item.qty } },
+        { new: false },
+      );
+      if (!before) continue;
       await StockMovement.create({
         shopId: req.tenant!.shopId,
-        productId: product._id,
-        productName: product.name,
+        productId: item.productId,
+        productName: item.productName,
         type: 'return',
         qty: item.qty,
-        qtyBefore,
-        qtyAfter,
+        qtyBefore: before.stockQty,
+        qtyAfter: before.stockQty + item.qty,
         reference: sale.saleNumber,
         notes: `Void: ${reason}`,
         createdBy: req.user!.id,
@@ -331,6 +347,14 @@ salesRouter.post(
       await Customer.updateOne(
         { _id: sale.customerId },
         { $inc: { totalSpent: -sale.total } },
+      );
+    }
+
+    // Void linked credit account if this was a credit sale — balance no longer owed
+    if (sale.paymentMethod === 'credit') {
+      await CreditAccount.findOneAndUpdate(
+        { saleId: sale._id, ...shopFilter(req) },
+        { status: 'defaulted', notes: `Voided: ${reason}` },
       );
     }
 
@@ -503,6 +527,31 @@ salesRouter.delete(
     const expense = await Expense.findOneAndDelete({ _id: req.params.id, ...shopFilter(req) });
     if (!expense) throw Errors.notFound('Expense');
     res.json({ ok: true });
+  }),
+);
+
+// ── PATCH /sales/:id — fix metadata (no stock effect) ────────────────────────
+
+import { z } from 'zod';
+
+const EditSaleSchema = z.object({
+  customerName:  z.string().min(1).optional(),
+  customerPhone: z.string().optional(),
+  paymentMethod: z.enum(['cash', 'mobile_money', 'card', 'credit']).optional(),
+  notes:         z.string().optional(),
+});
+
+salesRouter.patch(
+  '/:id',
+  asyncHandler(async (req, res) => {
+    const body = EditSaleSchema.parse(req.body);
+    const sale = await Sale.findOneAndUpdate(
+      { _id: req.params.id, ...shopFilter(req), status: 'completed' },
+      body,
+      { new: true },
+    );
+    if (!sale) throw Errors.notFound('Sale');
+    res.json({ sale });
   }),
 );
 

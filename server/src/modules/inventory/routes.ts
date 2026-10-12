@@ -279,8 +279,7 @@ inventoryRouter.post(
 
     if (qtyAfter < 0) throw Errors.negativeStock(product.name);
 
-    product.stockQty = qtyAfter;
-    await product.save();
+    await Product.updateOne({ _id: product._id }, { $inc: { stockQty: qty } });
 
     await StockMovement.create({
       shopId: req.tenant!.shopId,
@@ -553,13 +552,15 @@ inventoryRouter.post(
     if (order.status === 'cancelled') throw Errors.validation('Cannot receive a cancelled order');
 
     for (const line of order.lines) {
-      const product = await Product.findById(line.productId);
+      const product = await Product.findOneAndUpdate(
+        { _id: line.productId },
+        { $inc: { stockQty: line.qty } },
+        { new: false },
+      );
       if (!product) continue;
 
       const qtyBefore = product.stockQty;
       const qtyAfter = qtyBefore + line.qty;
-      product.stockQty = qtyAfter;
-      await product.save();
 
       await StockMovement.create({
         shopId: req.tenant!.shopId,
@@ -580,6 +581,21 @@ inventoryRouter.post(
     await order.save();
 
     res.json({ order });
+  }),
+);
+
+// Delete purchase order — draft/cancelled only
+inventoryRouter.delete(
+  '/purchases/:id',
+  requireRole('manager'),
+  asyncHandler(async (req, res) => {
+    const order = await PurchaseOrder.findOne({ _id: req.params.id, ...shopFilter(req) });
+    if (!order) throw Errors.notFound('Purchase order');
+    if (!['draft', 'cancelled'].includes(order.status)) {
+      throw Errors.validation('Only draft or cancelled orders can be deleted');
+    }
+    await PurchaseOrder.findByIdAndDelete(req.params.id);
+    res.json({ ok: true });
   }),
 );
 

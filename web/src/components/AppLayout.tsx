@@ -8,6 +8,7 @@ import { JkLogo } from './JkLogo';
 import { SubscriptionBanner } from '@/features/billing/SubscriptionGuard';
 import { useSubscription } from '@/hooks/useSubscription';
 import { creditsApi } from '@/lib/creditsApi';
+import { productsApi } from '@/lib/inventoryApi';
 import {
   LayoutDashboard,
   ShoppingCart,
@@ -27,6 +28,7 @@ import {
   Clock,
   CreditCard,
   ClipboardList,
+  AlertTriangle,
 } from 'lucide-react';
 import { clsx } from 'clsx';
 
@@ -50,6 +52,7 @@ const NAV_GROUPS = [
       { to: '/products',  label: 'nav.products',  icon: Package },
       { to: '/suppliers', label: 'nav.suppliers', icon: Truck },
       { to: '/purchases', label: 'nav.purchases', icon: ShoppingBag },
+      { to: '/alerts',    label: 'nav.alerts',    icon: AlertTriangle },
     ],
   },
   {
@@ -75,14 +78,23 @@ function NotificationBell() {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
-  const { data } = useQuery({
+  const { data: creditData } = useQuery({
     queryKey: ['credits', 'reminders'],
     queryFn: creditsApi.reminders,
     staleTime: 60_000,
     refetchInterval: 5 * 60_000,
   });
 
-  const count = (data?.overdueCount ?? 0) + (data?.todayCount ?? 0);
+  const { data: stockData } = useQuery({
+    queryKey: ['products', 'lowStock', 'bell'],
+    queryFn: () => productsApi.list({ lowStock: true, limit: 4 }),
+    staleTime: 5 * 60_000,
+    refetchInterval: 10 * 60_000,
+  });
+
+  const creditUrgent = (creditData?.overdueCount ?? 0) + (creditData?.todayCount ?? 0);
+  const stockTotal = stockData?.total ?? 0;
+  const totalCount = creditUrgent + stockTotal;
 
   useEffect(() => {
     function handler(e: MouseEvent) {
@@ -92,6 +104,8 @@ function NotificationBell() {
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
+  const isEmpty = stockTotal === 0 && (creditData?.items.length ?? 0) === 0;
+
   return (
     <div ref={ref} className="relative">
       <button
@@ -99,9 +113,9 @@ function NotificationBell() {
         className="relative p-2 rounded-lg text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
       >
         <Bell size={18} />
-        {count > 0 && (
+        {totalCount > 0 && (
           <span className="absolute -top-0.5 -right-0.5 h-4 w-4 text-[9px] font-bold bg-red-500 text-white rounded-full flex items-center justify-center">
-            {count > 9 ? '9+' : count}
+            {totalCount > 9 ? '9+' : totalCount}
           </span>
         )}
       </button>
@@ -109,65 +123,108 @@ function NotificationBell() {
       {open && (
         <div className="absolute right-0 top-full mt-1 w-80 bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-slate-200 dark:border-slate-700 z-50 overflow-hidden">
           <div className="px-4 py-3 border-b border-slate-100 dark:border-slate-700 flex items-center justify-between">
-            <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Payment Reminders</p>
-            {count > 0 && (
+            <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Notifications</p>
+            {totalCount > 0 && (
               <span className="text-[10px] font-bold bg-red-100 text-red-600 px-1.5 py-0.5 rounded-full">
-                {count} urgent
+                {totalCount} alerts
               </span>
             )}
           </div>
 
-          <div className="max-h-72 overflow-y-auto">
-            {!data || data.items.length === 0 ? (
+          <div className="max-h-80 overflow-y-auto">
+            {/* Low Stock Section */}
+            {stockTotal > 0 && (
+              <>
+                <div className="px-4 py-1.5 bg-orange-50 dark:bg-orange-900/10 flex items-center justify-between border-b border-orange-100 dark:border-orange-900/20">
+                  <div className="flex items-center gap-1.5">
+                    <Package size={11} className="text-orange-500" />
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-orange-600">Low Stock</p>
+                  </div>
+                  <span className="text-[10px] font-bold text-orange-600">{stockTotal} items</span>
+                </div>
+                {(stockData?.products ?? []).map((product) => (
+                  <button
+                    key={product._id}
+                    onClick={() => { navigate('/alerts'); setOpen(false); }}
+                    className="w-full text-left px-4 py-2.5 border-b border-slate-50 dark:border-slate-700/50 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-start gap-2 min-w-0">
+                        <AlertTriangle size={12} className="text-orange-400 mt-0.5 flex-shrink-0" />
+                        <div className="min-w-0">
+                          <p className="text-xs font-medium text-slate-800 dark:text-slate-200 truncate">{product.name}</p>
+                          <p className="text-[10px] text-slate-400">{product.sku}</p>
+                        </div>
+                      </div>
+                      <div className="text-right flex-shrink-0">
+                        <p className={clsx('text-xs font-bold', product.stockQty <= 0 ? 'text-red-600' : 'text-orange-600')}>
+                          {product.stockQty} left
+                        </p>
+                        <p className="text-[10px] text-slate-400">min {product.reorderLevel}</p>
+                      </div>
+                    </div>
+                  </button>
+                ))}
+              </>
+            )}
+
+            {/* Payment Reminders Section */}
+            {(creditData?.items.length ?? 0) > 0 && (
+              <>
+                <div className="px-4 py-1.5 bg-red-50 dark:bg-red-900/10 flex items-center justify-between border-b border-red-100 dark:border-red-900/20">
+                  <div className="flex items-center gap-1.5">
+                    <CreditCard size={11} className="text-red-500" />
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-red-600">Payments</p>
+                  </div>
+                  {creditUrgent > 0 && (
+                    <span className="text-[10px] font-bold text-red-600">{creditUrgent} urgent</span>
+                  )}
+                </div>
+                {creditData!.items.slice(0, 3).map((item, i) => (
+                  <button
+                    key={i}
+                    onClick={() => { navigate('/credits'); setOpen(false); }}
+                    className="w-full text-left px-4 py-2.5 border-b border-slate-50 dark:border-slate-700/50 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors"
+                  >
+                    <div className="flex items-start gap-2.5">
+                      {item.type === 'overdue' ? (
+                        <AlertCircle size={13} className="text-red-500 mt-0.5 flex-shrink-0" />
+                      ) : (
+                        <Clock size={13} className="text-amber-500 mt-0.5 flex-shrink-0" />
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-medium text-slate-800 dark:text-slate-200 truncate">
+                          {item.customerName}
+                          {item.customerPhone && <span className="text-slate-400 font-normal"> · {item.customerPhone}</span>}
+                        </p>
+                        <p className="text-[10px] text-slate-500 mt-0.5">
+                          {item.saleNumber} · RWF {item.amount.toLocaleString()}
+                        </p>
+                      </div>
+                      <p className={clsx('text-[10px] font-bold flex-shrink-0 mt-0.5', item.type === 'overdue' ? 'text-red-500' : 'text-amber-500')}>
+                        {item.type === 'overdue' ? 'OVERDUE' : item.type === 'today' ? 'TODAY' : 'SOON'}
+                      </p>
+                    </div>
+                  </button>
+                ))}
+              </>
+            )}
+
+            {/* Empty state */}
+            {isEmpty && (
               <div className="flex flex-col items-center justify-center py-8 text-slate-400 gap-2">
                 <Bell size={24} className="opacity-30" />
-                <p className="text-xs">No upcoming payments</p>
+                <p className="text-xs">All clear — no alerts</p>
               </div>
-            ) : (
-              data.items.map((item, i) => (
-                <button
-                  key={i}
-                  onClick={() => { navigate('/credits'); setOpen(false); }}
-                  className="w-full text-left px-4 py-3 border-b border-slate-50 dark:border-slate-700/50 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors"
-                >
-                  <div className="flex items-start gap-2.5">
-                    {item.type === 'overdue' ? (
-                      <AlertCircle size={14} className="text-red-500 mt-0.5 flex-shrink-0" />
-                    ) : (
-                      <Clock size={14} className="text-amber-500 mt-0.5 flex-shrink-0" />
-                    )}
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-medium text-slate-800 dark:text-slate-200 truncate">
-                        {item.customerName}
-                        {item.customerPhone && <span className="text-slate-400 font-normal"> · {item.customerPhone}</span>}
-                      </p>
-                      <p className="text-[10px] text-slate-500 mt-0.5">
-                        {item.saleNumber} · RWF {item.amount.toLocaleString()}
-                      </p>
-                    </div>
-                    <div className="text-right flex-shrink-0">
-                      <p className={clsx(
-                        'text-[10px] font-semibold',
-                        item.type === 'overdue' ? 'text-red-500' : 'text-amber-500',
-                      )}>
-                        {item.type === 'overdue' ? 'OVERDUE' : item.type === 'today' ? 'DUE TODAY' : 'SOON'}
-                      </p>
-                      <p className="text-[10px] text-slate-400">{new Date(item.dueDate).toLocaleDateString('en-RW', { day: 'numeric', month: 'short' })}</p>
-                    </div>
-                  </div>
-                </button>
-              ))
             )}
           </div>
 
-          {(data?.items.length ?? 0) > 0 && (
-            <button
-              onClick={() => { navigate('/credits'); setOpen(false); }}
-              className="w-full px-4 py-2.5 text-xs font-medium text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors border-t border-slate-100 dark:border-slate-700"
-            >
-              View all credit accounts →
-            </button>
-          )}
+          <button
+            onClick={() => { navigate('/alerts'); setOpen(false); }}
+            className="w-full px-4 py-2.5 text-xs font-medium text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors border-t border-slate-100 dark:border-slate-700"
+          >
+            View all alerts →
+          </button>
         </div>
       )}
     </div>
@@ -277,7 +334,7 @@ export function AppLayout() {
       {/* Main */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Top bar with notification bell */}
-        <div className="flex items-center justify-end px-4 py-2 border-b border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 md:flex hidden">
+        <div className="flex items-center justify-end px-4 py-2 border-b border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900">
           <NotificationBell />
         </div>
         <main className="flex-1 overflow-y-auto pb-20 md:pb-0">

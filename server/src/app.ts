@@ -11,6 +11,7 @@ import { creditsRouter } from './modules/credits/routes';
 import { reportsRouter } from './modules/reports/routes';
 import { aiRouter } from './modules/ai/routes';
 import { adminRouter } from './modules/admin/routes';
+import { receiptsRouter } from './modules/receipts/routes';
 
 export const app = express();
 
@@ -27,7 +28,7 @@ app.use(
     origin: config.APP_ORIGIN,
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'X-Shop-Id'],
+    allowedHeaders: ['Content-Type', 'X-Shop-Id', 'Authorization'],
   }),
 );
 
@@ -48,6 +49,7 @@ app.use('/api/credits', creditsRouter);
 app.use('/api/reports', reportsRouter);
 app.use('/api/ai', aiRouter);
 app.use('/api/admin', adminRouter);
+app.use('/api/receipts', receiptsRouter); // public — no auth
 
 // 404 for unknown API routes
 app.use('/api/*', (_req, res) => {
