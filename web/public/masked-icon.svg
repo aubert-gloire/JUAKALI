@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none">
+  <!-- J -->
+  <line x1="10" y1="8" x2="10" y2="21" stroke="#ea580c" stroke-width="3" stroke-linecap="round"/>
+  <path d="M10 21 Q10 26 7 26" stroke="#ea580c" stroke-width="3" stroke-linecap="round" fill="none"/>
+  <!-- K -->
+  <line x1="17" y1="8" x2="17" y2="24" stroke="#ea580c" stroke-width="3" stroke-linecap="round"/>
+  <path d="M17 16 L23 8" stroke="#ea580c" stroke-width="2.5" stroke-linecap="round" fill="none"/>
+  <path d="M17 16 L23 24" stroke="#ea580c" stroke-width="2.5" stroke-linecap="round" fill="none"/>
+  <!-- Oblique strike -->
+  <line x1="5" y1="27" x2="27" y2="5" stroke="#ea580c" stroke-width="1.5" stroke-linecap="round" opacity="0.5"/>
+</svg>
