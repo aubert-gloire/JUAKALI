@@ -72,7 +72,7 @@ function qs(params?: Record<string, string | number | boolean | undefined>) {
 // ── API ───────────────────────────────────────────────────────────────────────
 
 export const creditsApi = {
-  list: (params?: { page?: number; status?: string }) =>
+  list: (params?: { page?: number; status?: string; search?: string }) =>
     api.get<{ accounts: CreditAccount[]; total: number; page: number; pages: number }>(
       `/credits${qs(params)}`,
     ),

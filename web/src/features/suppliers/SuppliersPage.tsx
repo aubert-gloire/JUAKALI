@@ -4,7 +4,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { toast } from 'sonner';
-import { Plus, Edit2, Truck, X, Phone, Mail, PowerOff, Printer, Download, FileText } from 'lucide-react';
+import { Plus, Edit2, Truck, X, Phone, Mail, Trash2, Printer, Download, FileText } from 'lucide-react';
 import { suppliersApi, Supplier } from '@/lib/inventoryApi';
 import { exportCSV, printTable, exportPDF } from '@/lib/exportUtils';
 
@@ -200,9 +200,9 @@ export function SuppliersPage() {
                         <button
                           onClick={() => setDeactivateTarget(s)}
                           className="p-1.5 rounded text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-                          title="Deactivate supplier"
+                          title="Delete supplier"
                         >
-                          <PowerOff size={14} />
+                          <Trash2 size={14} />
                         </button>
                       </div>
                     </td>
@@ -234,7 +234,7 @@ function DeactivateSupplierModal({ supplier, onClose }: { supplier: Supplier; on
   const mutation = useMutation({
     mutationFn: () => suppliersApi.deactivate(supplier._id),
     onSuccess: () => {
-      toast.success(`${supplier.name} deactivated`);
+      toast.success(`${supplier.name} removed`);
       qc.invalidateQueries({ queryKey: ['inventory', 'suppliers'] });
       onClose();
     },
@@ -244,9 +244,12 @@ function DeactivateSupplierModal({ supplier, onClose }: { supplier: Supplier; on
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/40" onClick={onClose} />
       <div className="relative bg-white dark:bg-slate-800 rounded-xl w-full max-w-sm shadow-2xl p-5">
-        <h2 className="font-semibold text-slate-900 dark:text-slate-100 mb-1">Deactivate Supplier</h2>
+        <div className="flex items-center gap-3 mb-3">
+          <Trash2 size={18} className="text-red-500 flex-shrink-0" />
+          <h2 className="font-semibold text-slate-900 dark:text-slate-100">Delete Supplier</h2>
+        </div>
         <p className="text-sm text-slate-500 mb-5">
-          <strong>{supplier.name}</strong> will be hidden from supplier lists. Purchase history is preserved.
+          Remove <strong>{supplier.name}</strong> from your supplier list? Purchase history is preserved.
         </p>
         <div className="flex justify-end gap-2">
           <button className="btn-ghost" onClick={onClose}>Cancel</button>
@@ -255,7 +258,7 @@ function DeactivateSupplierModal({ supplier, onClose }: { supplier: Supplier; on
             disabled={mutation.isPending}
             onClick={() => mutation.mutate()}
           >
-            {mutation.isPending ? 'Deactivating…' : 'Deactivate'}
+            {mutation.isPending ? 'Deleting…' : 'Delete Supplier'}
           </button>
         </div>
       </div>

@@ -124,7 +124,7 @@ export const productsApi = {
   create: (body: ProductCreateBody) => api.post<{ product: Product }>('/inventory/products', body),
   update: (id: string, body: Partial<ProductCreateBody>) =>
     api.patch<{ product: Product }>(`/inventory/products/${id}`, body),
-  deactivate: (id: string) => api.delete(`/inventory/products/${id}`),
+  deactivate: (id: string) => api.delete<{ ok: boolean; archived?: boolean }>(`/inventory/products/${id}`),
   adjust: (id: string, qty: number, notes?: string) =>
     api.post(`/inventory/products/${id}/adjust`, { qty, notes }),
   importCsv: (csv: string) =>

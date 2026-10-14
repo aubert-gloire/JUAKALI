@@ -103,13 +103,20 @@ creditsRouter.get(
 creditsRouter.get(
   '/',
   asyncHandler(async (req, res) => {
-    const { page = '1', limit = '30', status } = req.query as Record<string, string>;
+    const { page = '1', limit = '30', status, search } = req.query as Record<string, string>;
     const pageNum = Math.max(1, parseInt(page));
     const limitNum = Math.min(100, parseInt(limit) || 30);
     const skip = (pageNum - 1) * limitNum;
 
     const filter: Record<string, unknown> = { ...shopFilter(req) };
     if (status && status !== 'all') filter.status = status;
+    if (search) {
+      filter.$or = [
+        { customerName: { $regex: search, $options: 'i' } },
+        { customerPhone: { $regex: search, $options: 'i' } },
+        { saleNumber: { $regex: search, $options: 'i' } },
+      ];
+    }
 
     const [accounts, total] = await Promise.all([
       CreditAccount.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limitNum).lean(),

@@ -7,7 +7,7 @@ import { toast } from 'sonner';
 import {
   CreditCard, ChevronDown, ChevronUp, DollarSign,
   X, Clock, CheckCircle2, AlertTriangle, Printer, Download, FileText, Pencil, Trash2, MessageCircle,
-  ShoppingBag, Users,
+  ShoppingBag, Users, Search,
 } from 'lucide-react';
 import { settingsApi } from '@/lib/settingsApi';
 import {
@@ -797,6 +797,7 @@ const STATUS_FILTERS = [
 export function CreditsPage() {
   const [statusFilter, setStatusFilter] = useState('active');
   const [page, setPage] = useState(1);
+  const [search, setSearch] = useState('');
   const [editTarget, setEditTarget] = useState<CreditAccount | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<CreditAccount | null>(null);
   const qc = useQueryClient();
@@ -820,8 +821,8 @@ export function CreditsPage() {
   });
 
   const { data, isLoading } = useQuery({
-    queryKey: ['credits', 'list', statusFilter, page],
-    queryFn: () => creditsApi.list({ page, status: statusFilter }),
+    queryKey: ['credits', 'list', statusFilter, page, search],
+    queryFn: () => creditsApi.list({ page, status: statusFilter, search: search || undefined }),
     staleTime: 15_000,
   });
 
@@ -856,7 +857,8 @@ export function CreditsPage() {
         <div>
           <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">Credit Accounts</h1>
           <p className="text-xs text-slate-400 mt-0.5">
-            {data ? `${data.total} accounts · ${groups.length} customer${groups.length !== 1 ? 's' : ''}` : '…'}
+            {data ? `${data.total} account${data.total !== 1 ? 's' : ''} · ${groups.length} customer${groups.length !== 1 ? 's' : ''}` : '…'}
+            {search && <span className="text-primary-500"> · "{search}"</span>}
             {totalBalance > 0 && ` · Outstanding: RWF ${totalBalance.toLocaleString()}`}
             {overdueCount > 0 && (
               <span className="text-red-500 font-medium"> · {overdueCount} overdue</span>
@@ -872,22 +874,42 @@ export function CreditsPage() {
         )}
       </div>
 
-      {/* Status filter */}
-      <div className="flex rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden w-fit mb-4">
-        {STATUS_FILTERS.map((f) => (
-          <button
-            key={f.value}
-            onClick={() => { setStatusFilter(f.value); setPage(1); }}
-            className={clsx(
-              'px-3 py-1.5 text-xs font-medium transition-colors',
-              statusFilter === f.value
-                ? 'bg-primary-600 text-white'
-                : 'text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800',
-            )}
-          >
-            {f.label}
-          </button>
-        ))}
+      {/* Filters row */}
+      <div className="flex flex-wrap items-center gap-3 mb-4">
+        <div className="flex rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden w-fit">
+          {STATUS_FILTERS.map((f) => (
+            <button
+              key={f.value}
+              onClick={() => { setStatusFilter(f.value); setPage(1); }}
+              className={clsx(
+                'px-3 py-1.5 text-xs font-medium transition-colors',
+                statusFilter === f.value
+                  ? 'bg-primary-600 text-white'
+                  : 'text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800',
+              )}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="relative flex-1 min-w-[180px] max-w-xs">
+          <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          <input
+            className="input pl-8 text-sm"
+            placeholder="Search by customer or sale #…"
+            value={search}
+            onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+          />
+          {search && (
+            <button
+              onClick={() => { setSearch(''); setPage(1); }}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+            >
+              <X size={13} />
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Content */}

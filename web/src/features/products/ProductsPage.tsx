@@ -6,7 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { toast } from 'sonner';
 import {
-  Plus, Search, Upload, Edit2, Package, Sliders, X, PowerOff, TrendingUp, Printer, Download, FileText,
+  Plus, Search, Upload, Edit2, Package, Sliders, X, Trash2, TrendingUp, Printer, Download, FileText,
   ShoppingCart, RefreshCw,
 } from 'lucide-react';
 import { productsApi, purchasesApi, suppliersApi, type TopSeller, type Supplier, Product } from '@/lib/inventoryApi';
@@ -428,9 +428,9 @@ function ProductGridCard({
         <button
           onClick={() => onDeactivate(product)}
           className="flex items-center justify-center gap-1 text-xs font-medium py-1.5 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-400 hover:bg-red-50 hover:text-red-500 transition-colors"
-          title="Deactivate product"
+          title="Delete product"
         >
-          <PowerOff size={11} /> Off
+          <Trash2 size={11} /> Delete
         </button>
       </div>
     </div>
@@ -629,9 +629,14 @@ function DeactivateProductModal({ product, onClose }: { product: Product; onClos
   const qc = useQueryClient();
   const mutation = useMutation({
     mutationFn: () => productsApi.deactivate(product._id),
-    onSuccess: () => {
-      toast.success(`${product.name} deactivated`);
+    onSuccess: (res: { ok: boolean; archived?: boolean }) => {
+      if (res?.archived) {
+        toast.success(`${product.name} archived — it has sales history so it was hidden instead of permanently deleted.`);
+      } else {
+        toast.success(`${product.name} deleted`);
+      }
       qc.invalidateQueries({ queryKey: ['inventory', 'products'] });
+      qc.invalidateQueries({ queryKey: ['inventory', 'stats'] });
       onClose();
     },
     onError: (e) => toast.error(e.message),
@@ -640,9 +645,15 @@ function DeactivateProductModal({ product, onClose }: { product: Product; onClos
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/40" onClick={onClose} />
       <div className="relative bg-white dark:bg-slate-800 rounded-xl w-full max-w-sm shadow-2xl p-5">
-        <h2 className="font-semibold text-slate-900 dark:text-slate-100 mb-1">Deactivate Product</h2>
-        <p className="text-sm text-slate-500 mb-5">
-          <strong>{product.name}</strong> will be hidden from the POS and inventory. Existing sales history is preserved.
+        <div className="flex items-center gap-3 mb-3">
+          <Trash2 size={18} className="text-red-500 flex-shrink-0" />
+          <h2 className="font-semibold text-slate-900 dark:text-slate-100">Delete Product</h2>
+        </div>
+        <p className="text-sm text-slate-500 mb-2">
+          Delete <strong>{product.name}</strong>?
+        </p>
+        <p className="text-xs text-slate-400 mb-5">
+          If this product has sales history it will be archived (hidden from POS and lists) instead of permanently deleted, so your records stay intact.
         </p>
         <div className="flex justify-end gap-2">
           <button className="btn-ghost" onClick={onClose}>Cancel</button>
@@ -651,7 +662,7 @@ function DeactivateProductModal({ product, onClose }: { product: Product; onClos
             disabled={mutation.isPending}
             onClick={() => mutation.mutate()}
           >
-            {mutation.isPending ? 'Deactivating…' : 'Deactivate'}
+            {mutation.isPending ? 'Deleting…' : 'Delete Product'}
           </button>
         </div>
       </div>
