@@ -181,7 +181,7 @@ function RecordPaymentModal({
       <div className="relative bg-white dark:bg-slate-800 rounded-t-2xl sm:rounded-xl w-full sm:max-w-sm shadow-2xl">
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-700">
           <div>
-            <h2 className="font-semibold text-slate-900 dark:text-slate-100">Record Payment</h2>
+            <h2 className="font-semibold text-slate-900 dark:text-slate-100">Clear Debt</h2>
             <p className="text-xs text-slate-400 mt-0.5">
               {account.customerName} · Balance: RWF {account.balance.toLocaleString()}
             </p>
@@ -232,7 +232,7 @@ function RecordPaymentModal({
           <div className="flex justify-end gap-2 pt-1">
             <button type="button" className="btn-ghost" onClick={onClose}>Cancel</button>
             <button type="submit" className="btn-primary" disabled={mutation.isPending}>
-              {mutation.isPending ? 'Saving…' : 'Record Payment'}
+              {mutation.isPending ? 'Saving…' : 'Clear Debt'}
             </button>
           </div>
         </form>
@@ -459,7 +459,7 @@ function AccountSubRow({
           )}
           {account.status !== 'paid' && (
             <button
-              title="Record payment"
+              title="Clear debt"
               onClick={(e) => { e.stopPropagation(); setShowPay(true); }}
               className="p-1.5 rounded-lg bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400 hover:bg-primary-100 transition-colors"
             >
@@ -608,7 +608,7 @@ function AccountSubRow({
                 className="btn-primary text-xs py-1.5 gap-1.5"
                 onClick={(e) => { e.stopPropagation(); setShowPay(true); }}
               >
-                <DollarSign size={12} /> Record Payment
+                <DollarSign size={12} /> Clear Debt
               </button>
             )}
             <button

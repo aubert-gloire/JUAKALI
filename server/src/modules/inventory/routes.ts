@@ -252,8 +252,6 @@ inventoryRouter.delete(
     const product = await Product.findOne({ _id: req.params.id, ...shopFilter(req) });
     if (!product) throw Errors.notFound('Product');
 
-    // Check if product has any sales history — block hard delete if so
-    const { Sale } = await import('../../models/Sale');
     const salesCount = await Sale.countDocuments({ 'items.productId': product._id });
     if (salesCount > 0) {
       // Soft-delete only — preserve history
