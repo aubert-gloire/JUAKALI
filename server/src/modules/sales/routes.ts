@@ -297,9 +297,9 @@ salesRouter.post(
       });
     }
 
-    // Update customer total spent
+    // Update customer totals
     if (resolvedCustomerId) {
-      await Customer.updateOne({ _id: resolvedCustomerId }, { $inc: { totalSpent: total } });
+      await Customer.updateOne({ _id: resolvedCustomerId }, { $inc: { totalSpent: total, salesCount: 1 } });
     }
 
     // Auto-create credit account for credit sales
@@ -374,11 +374,11 @@ salesRouter.post(
       });
     }
 
-    // Reverse customer total spent
+    // Reverse customer totals
     if (sale.customerId) {
       await Customer.updateOne(
         { _id: sale.customerId },
-        { $inc: { totalSpent: -sale.total } },
+        { $inc: { totalSpent: -sale.total, salesCount: -1 } },
       );
     }
 

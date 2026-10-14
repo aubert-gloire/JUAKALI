@@ -189,30 +189,83 @@ function StatementModal({ customer, credits, onClose }: { customer: Customer; cr
   const printStatement = () => {
     const w = window.open('', '_blank');
     if (!w) return;
-    const rows = customerCredits.map((c) => `
-      <tr>
-        <td>${c.saleNumber}</td>
-        <td>${new Date(c.createdAt).toLocaleDateString('en-RW')}</td>
-        <td style="text-align:right">${c.totalAmount.toLocaleString()}</td>
-        <td style="text-align:right">${c.amountPaid.toLocaleString()}</td>
-        <td style="text-align:right;font-weight:bold;color:${c.balance > 0 ? '#dc2626' : '#16a34a'}">${c.balance.toLocaleString()}</td>
-        <td>${c.status}</td>
-      </tr>`).join('');
+
+    const salesRows = allPurchases.map((s) => {
+      const items = s.items.map((i) => `${i.productName} ×${i.qty}`).join(', ');
+      const method = s.paymentMethod === 'mobile_money' ? 'MoMo' : s.paymentMethod === 'credit' ? 'Credit' : 'Cash';
+      return `<tr>
+        <td>${s.saleNumber}</td>
+        <td>${new Date(s.createdAt).toLocaleDateString('en-RW')}</td>
+        <td>${items}</td>
+        <td style="text-align:right">${s.total.toLocaleString()}</td>
+        <td>${method}</td>
+      </tr>`;
+    }).join('');
+
+    const creditRows = customerCredits.map((c) => `<tr>
+      <td>${c.saleNumber}</td>
+      <td>${new Date(c.createdAt).toLocaleDateString('en-RW')}</td>
+      <td style="text-align:right">${c.totalAmount.toLocaleString()}</td>
+      <td style="text-align:right">${c.amountPaid.toLocaleString()}</td>
+      <td style="text-align:right;font-weight:bold;color:${c.balance > 0 ? '#dc2626' : '#16a34a'}">${c.balance.toLocaleString()}</td>
+      <td style="text-transform:capitalize">${c.status}</td>
+    </tr>`).join('');
+
     w.document.write(`<!doctype html><html><head><title>Statement — ${customer.name}</title><style>
-      body{font-family:sans-serif;font-size:12px;padding:20px}
-      h2{margin:0 0 4px}p{margin:0 0 12px;color:#555}
-      table{width:100%;border-collapse:collapse}
-      th,td{border:1px solid #ddd;padding:6px 8px;text-align:left}
-      th{background:#f5f5f5;font-weight:600}
-      .total{font-size:14px;font-weight:bold;text-align:right;padding-top:8px}
+      *{box-sizing:border-box}
+      body{font-family:Arial,sans-serif;font-size:12px;padding:24px;color:#111;max-width:800px;margin:0 auto}
+      h1{font-size:18px;margin:0 0 2px}
+      .subtitle{color:#666;margin:0 0 16px;font-size:12px}
+      .summary{display:flex;gap:16px;margin-bottom:20px}
+      .box{border:1px solid #ddd;border-radius:6px;padding:10px 14px;flex:1}
+      .box-label{font-size:10px;font-weight:600;text-transform:uppercase;color:#888;letter-spacing:.05em;margin-bottom:2px}
+      .box-value{font-size:16px;font-weight:700}
+      .box-value.debt{color:#dc2626}
+      .box-value.ok{color:#16a34a}
+      h2{font-size:13px;margin:20px 0 6px;padding-bottom:4px;border-bottom:1px solid #eee}
+      table{width:100%;border-collapse:collapse;margin-bottom:8px}
+      th{background:#f5f5f5;font-size:10px;text-transform:uppercase;letter-spacing:.04em;font-weight:600;color:#555;padding:6px 8px;text-align:left;border-bottom:2px solid #ddd}
+      td{padding:6px 8px;border-bottom:1px solid #f0f0f0;vertical-align:top}
+      tr:last-child td{border-bottom:none}
+      .empty{color:#aaa;font-style:italic;padding:10px 8px}
+      .footer{margin-top:24px;padding-top:12px;border-top:1px solid #ddd;font-size:10px;color:#999;text-align:right}
+      @media print{body{padding:10px}}
     </style></head><body>
-      <h2>Customer Statement: ${customer.name}</h2>
-      <p>Phone: ${customer.phone ?? '—'} · Total spent: RWF ${customer.totalSpent.toLocaleString()}</p>
+      <h1>Customer Statement</h1>
+      <p class="subtitle">${customer.name}${customer.phone ? ' · ' + customer.phone : ''}${customer.email ? ' · ' + customer.email : ''}</p>
+
+      <div class="summary">
+        <div class="box">
+          <div class="box-label">Total Sales</div>
+          <div class="box-value">${allPurchases.length} transaction${allPurchases.length !== 1 ? 's' : ''}</div>
+        </div>
+        <div class="box">
+          <div class="box-label">Total Spent</div>
+          <div class="box-value">RWF ${customer.totalSpent.toLocaleString()}</div>
+        </div>
+        <div class="box">
+          <div class="box-label">Outstanding Debt</div>
+          <div class="box-value ${totalDebt > 0 ? 'debt' : 'ok'}">RWF ${totalDebt.toLocaleString()}</div>
+        </div>
+      </div>
+
+      <h2>Sales History</h2>
+      <table>
+        <thead><tr><th>Sale #</th><th>Date</th><th>Items</th><th style="text-align:right">Total (RWF)</th><th>Payment</th></tr></thead>
+        <tbody>${salesRows || '<tr><td colspan="5" class="empty">No sales recorded</td></tr>'}</tbody>
+      </table>
+
+      ${customerCredits.length > 0 ? `
+      <h2>Credit Accounts</h2>
       <table>
         <thead><tr><th>Sale #</th><th>Date</th><th style="text-align:right">Amount</th><th style="text-align:right">Paid</th><th style="text-align:right">Balance</th><th>Status</th></tr></thead>
-        <tbody>${rows}</tbody>
+        <tbody>${creditRows}</tbody>
       </table>
-      <p class="total">Outstanding: RWF ${totalDebt.toLocaleString()}</p>
+      <p style="text-align:right;font-weight:700;font-size:13px;margin-top:6px">
+        Total outstanding: RWF ${totalDebt.toLocaleString()}
+      </p>` : ''}
+
+      <div class="footer">Printed on ${new Date().toLocaleDateString('en-RW', { day: 'numeric', month: 'long', year: 'numeric' })}</div>
     </body></html>`);
     w.document.close();
     w.focus();
@@ -441,11 +494,18 @@ export function CustomersPage() {
                         </div>
                         <div className="min-w-0">
                           <span className="font-medium text-slate-800 dark:text-slate-200">{c.name}</span>
-                          {debt > 0 && (
-                            <span className="ml-2 inline-flex items-center text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400">
-                              RWF {debt.toLocaleString()} owed
-                            </span>
-                          )}
+                          <div className="flex flex-wrap items-center gap-1 mt-0.5">
+                            {(c.salesCount ?? 0) > 0 && (
+                              <span className="inline-flex items-center text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-primary-100 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400">
+                                {c.salesCount} sale{c.salesCount !== 1 ? 's' : ''}
+                              </span>
+                            )}
+                            {debt > 0 && (
+                              <span className="inline-flex items-center text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400">
+                                RWF {debt.toLocaleString()} owed
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </td>

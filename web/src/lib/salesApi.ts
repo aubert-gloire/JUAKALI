@@ -68,6 +68,7 @@ export interface Customer {
   email?: string;
   notes?: string;
   totalSpent: number;
+  salesCount: number;
 }
 
 export interface Expense {

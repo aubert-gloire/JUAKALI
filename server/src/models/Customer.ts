@@ -7,6 +7,7 @@ export interface ICustomer extends Document {
   email?: string;
   notes?: string;
   totalSpent: number;
+  salesCount: number;
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -20,6 +21,7 @@ const CustomerSchema = new Schema<ICustomer>(
     email: { type: String, trim: true, lowercase: true },
     notes: { type: String },
     totalSpent: { type: Number, default: 0 },
+    salesCount: { type: Number, default: 0 },
     isActive: { type: Boolean, default: true },
   },
   { timestamps: true },
