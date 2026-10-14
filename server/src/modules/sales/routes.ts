@@ -310,6 +310,17 @@ salesRouter.post(
         ? [{ amount: upfront, recordedAt: new Date(), notes: 'Paid at time of sale', recordedBy: req.user!.id }]
         : [];
 
+      const installments = (body.creditInstallments ?? []).map((inst) => ({
+        dueDate: new Date(inst.dueDate),
+        amount: inst.amount,
+        paidAmount: 0,
+        status: 'pending',
+        notes: inst.notes,
+      }));
+      const lastDueDate = installments.length > 0
+        ? installments[installments.length - 1].dueDate
+        : (body.creditDueDate ? new Date(body.creditDueDate) : undefined);
+
       await CreditAccount.create({
         shopId: req.tenant!.shopId,
         saleId: sale._id,
@@ -320,9 +331,9 @@ salesRouter.post(
         totalAmount: total,
         amountPaid: upfront,
         balance: creditBalance,
-        dueDate: body.creditDueDate ? new Date(body.creditDueDate) : undefined,
+        dueDate: lastDueDate,
         status: creditBalance <= 0 ? 'paid' : 'active',
-        installments: [],
+        installments,
         payments: initialPayments,
         createdBy: req.user!.id,
       });

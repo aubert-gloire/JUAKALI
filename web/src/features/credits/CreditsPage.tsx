@@ -13,7 +13,9 @@ import {
   creditsApi,
   type CreditAccount,
   type CreditStatus,
+  type Installment,
 } from '@/lib/creditsApi';
+import { Calendar } from 'lucide-react';
 import { exportCSV, printTable, exportPDF } from '@/lib/exportUtils';
 
 const CREDIT_COLS = [
@@ -334,6 +336,56 @@ function AccountRow({ account, onEdit, onDelete, shopName, shopPhone }: { accoun
                 </p>
               </div>
             </div>
+
+            {/* Installment schedule */}
+            {account.installments && account.installments.length > 0 && (
+              <div className="mb-3">
+                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-2">
+                  Installment Schedule
+                </p>
+                <div className="space-y-1.5">
+                  {account.installments.map((inst: Installment, i: number) => {
+                    const isPast = new Date(inst.dueDate) < new Date() && inst.status !== 'paid';
+                    return (
+                      <div key={inst._id ?? i} className={clsx(
+                        'flex items-center gap-3 rounded-lg px-3 py-2 text-xs',
+                        inst.status === 'paid'
+                          ? 'bg-green-50 dark:bg-green-900/20'
+                          : isPast
+                            ? 'bg-red-50 dark:bg-red-900/20'
+                            : 'bg-white dark:bg-slate-800',
+                      )}>
+                        <Calendar size={12} className={clsx(
+                          'flex-shrink-0',
+                          inst.status === 'paid' ? 'text-green-500' : isPast ? 'text-red-500' : 'text-slate-400',
+                        )} />
+                        <span className="text-slate-500 w-24 flex-shrink-0">
+                          {new Date(inst.dueDate).toLocaleDateString('en-RW', { day: 'numeric', month: 'short', year: 'numeric' })}
+                        </span>
+                        <span className="font-semibold tabular-nums text-slate-800 dark:text-slate-200">
+                          RWF {inst.amount.toLocaleString()}
+                        </span>
+                        {inst.paidAmount > 0 && inst.status !== 'paid' && (
+                          <span className="text-green-600 text-[10px]">
+                            RWF {inst.paidAmount.toLocaleString()} paid
+                          </span>
+                        )}
+                        <span className={clsx(
+                          'ml-auto text-[9px] font-bold uppercase px-1.5 py-0.5 rounded',
+                          inst.status === 'paid'
+                            ? 'bg-green-100 text-green-700'
+                            : inst.status === 'overdue' || isPast
+                              ? 'bg-red-100 text-red-700'
+                              : 'bg-slate-100 text-slate-500',
+                        )}>
+                          {inst.status === 'paid' ? 'Paid' : inst.status === 'overdue' || isPast ? 'Overdue' : 'Pending'}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             {/* Payment history */}
             <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-2">

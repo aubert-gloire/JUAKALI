@@ -16,6 +16,11 @@ export const CompleteSaleSchema = z.object({
   notes: z.string().optional(),
   creditDueDate: z.string().optional(),
   creditUpfrontAmount: z.number().int().min(0).optional(),
+  creditInstallments: z.array(z.object({
+    dueDate: z.string(),
+    amount: z.number().int().min(1),
+    notes: z.string().optional(),
+  })).optional(),
 });
 
 export const VoidSaleSchema = z.object({

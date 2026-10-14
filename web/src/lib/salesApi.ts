@@ -114,6 +114,7 @@ export type CompleteSaleBody = {
   notes?: string;
   creditDueDate?: string;
   creditUpfrontAmount?: number;
+  creditInstallments?: Array<{ dueDate: string; amount: number; notes?: string }>;
 };
 
 export type SalesListParams = {

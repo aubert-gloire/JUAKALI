@@ -11,6 +11,17 @@ export interface PaymentRecord {
   notes?: string;
 }
 
+export type InstallmentStatus = 'pending' | 'partial' | 'paid' | 'overdue';
+
+export interface Installment {
+  _id: string;
+  dueDate: string;
+  amount: number;
+  paidAmount: number;
+  status: InstallmentStatus;
+  notes?: string;
+}
+
 export interface CreditAccount {
   _id: string;
   saleId: string;
@@ -23,6 +34,7 @@ export interface CreditAccount {
   balance: number;
   dueDate?: string;
   status: CreditStatus;
+  installments: Installment[];
   payments: PaymentRecord[];
   notes?: string;
   createdAt: string;

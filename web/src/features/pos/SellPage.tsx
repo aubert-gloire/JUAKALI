@@ -1,11 +1,12 @@
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
   Search, X, Plus, Minus, Trash2, ShoppingCart,
   Banknote, Smartphone, CreditCard, AlertCircle, CheckCircle2, Tag,
-  Printer, MessageCircle, CheckCircle, Download, Link, Phone,
+  Printer, MessageCircle, CheckCircle, Download, Link, Phone, UserPlus,
+  Calendar,
 } from 'lucide-react';
 import { productsApi, categoriesApi, type Product, type Category } from '@/lib/inventoryApi';
 import { salesApi, customersApi, type PaymentMethod, type Sale, type Customer, PAYMENT_LABELS } from '@/lib/salesApi';
@@ -91,6 +92,8 @@ function ProductCard({
 
 // ── Payment modal ─────────────────────────────────────────────────────────────
 
+type InstallmentLine = { dueDate: string; amount: number };
+
 function PaymentModal({
   open,
   total,
@@ -104,13 +107,38 @@ function PaymentModal({
   total: number;
   paymentMethod: PaymentMethod;
   onChangeMethod: (m: PaymentMethod) => void;
-  onConfirm: (tendered?: number, creditDueDate?: string, creditUpfront?: number) => void;
+  onConfirm: (tendered?: number, creditDueDate?: string, creditUpfront?: number, installments?: InstallmentLine[]) => void;
   onClose: () => void;
   isPending: boolean;
 }) {
   const [tendered, setTendered] = useState('');
   const [creditDueDate, setCreditDueDate] = useState('');
   const [creditUpfront, setCreditUpfront] = useState('');
+  const [installmentsOn, setInstallmentsOn] = useState(false);
+  const [installCount, setInstallCount] = useState(3);
+  const [installInterval, setInstallInterval] = useState<'weekly' | 'monthly'>('monthly');
+  const [installStart, setInstallStart] = useState(() => {
+    const d = new Date();
+    d.setMonth(d.getMonth() + 1);
+    return d.toISOString().slice(0, 10);
+  });
+
+  const creditBalance = total - (parseFloat(creditUpfront) || 0);
+
+  const installmentLines = useMemo<InstallmentLine[]>(() => {
+    if (!installmentsOn || installCount < 2 || creditBalance <= 0) return [];
+    const base = Math.floor(creditBalance / installCount);
+    const remainder = creditBalance - base * installCount;
+    return Array.from({ length: installCount }, (_, i) => {
+      const d = new Date(installStart + 'T00:00:00');
+      if (installInterval === 'monthly') d.setMonth(d.getMonth() + i);
+      else d.setDate(d.getDate() + i * 7);
+      return {
+        dueDate: d.toISOString().slice(0, 10),
+        amount: i === installCount - 1 ? base + remainder : base,
+      };
+    });
+  }, [installmentsOn, installCount, installInterval, installStart, creditBalance]);
 
   if (!open) return null;
 
@@ -245,6 +273,7 @@ function PaymentModal({
             </div>
             {paymentMethod === 'credit' && (
               <div className="space-y-3 text-left">
+                {/* Upfront amount */}
                 <div>
                   <label className="text-xs font-medium text-slate-600 dark:text-slate-400 block mb-1">
                     Amount paid now <span className="font-normal text-slate-400">(optional)</span>
@@ -252,9 +281,7 @@ function PaymentModal({
                   <div className="relative">
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-slate-400">RWF</span>
                     <input
-                      type="number"
-                      min={0}
-                      max={total}
+                      type="number" min={0} max={total}
                       className="input pl-10 text-sm"
                       placeholder="0"
                       value={creditUpfront}
@@ -264,24 +291,110 @@ function PaymentModal({
                 </div>
                 {parseFloat(creditUpfront) > 0 && (
                   <div className="bg-amber-50 dark:bg-amber-900/20 rounded-lg px-3 py-2 flex justify-between text-xs">
-                    <span className="text-slate-500">Balance remaining</span>
+                    <span className="text-slate-500">Balance owed</span>
                     <span className="font-bold text-amber-700 dark:text-amber-400">
-                      RWF {Math.max(0, total - parseFloat(creditUpfront)).toLocaleString()}
+                      RWF {Math.max(0, creditBalance).toLocaleString()}
                     </span>
                   </div>
                 )}
-                <div>
-                  <label className="text-xs font-medium text-slate-600 dark:text-slate-400 block mb-1">
-                    Full payment due by <span className="font-normal text-slate-400">(optional)</span>
-                  </label>
-                  <input
-                    type="date"
-                    className="input text-sm"
-                    value={creditDueDate}
-                    min={new Date().toISOString().slice(0, 10)}
-                    onChange={(e) => setCreditDueDate(e.target.value)}
-                  />
+
+                {/* Installments toggle */}
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-medium text-slate-600 dark:text-slate-400">Pay in installments</span>
+                  <button
+                    type="button"
+                    onClick={() => setInstallmentsOn((v) => !v)}
+                    className={clsx(
+                      'relative inline-flex h-5 w-9 items-center rounded-full transition-colors',
+                      installmentsOn ? 'bg-primary-600' : 'bg-slate-300 dark:bg-slate-600',
+                    )}
+                  >
+                    <span className={clsx(
+                      'inline-block h-3.5 w-3.5 rounded-full bg-white shadow transition-transform',
+                      installmentsOn ? 'translate-x-4' : 'translate-x-1',
+                    )} />
+                  </button>
                 </div>
+
+                {/* Installment builder */}
+                {installmentsOn ? (
+                  <div className="space-y-2.5 rounded-xl bg-slate-50 dark:bg-slate-900/50 p-3">
+                    {/* Count */}
+                    <div>
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400 mb-1.5">Number of payments</p>
+                      <div className="flex gap-1.5">
+                        {[2, 3, 4, 6].map((n) => (
+                          <button key={n} type="button"
+                            onClick={() => setInstallCount(n)}
+                            className={clsx(
+                              'flex-1 py-1.5 rounded-lg text-xs font-semibold border transition-colors',
+                              installCount === n
+                                ? 'bg-primary-600 text-white border-primary-600'
+                                : 'border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300',
+                            )}
+                          >{n}</button>
+                        ))}
+                      </div>
+                    </div>
+                    {/* Interval */}
+                    <div>
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400 mb-1.5">Every</p>
+                      <div className="flex gap-1.5">
+                        {(['weekly', 'monthly'] as const).map((iv) => (
+                          <button key={iv} type="button"
+                            onClick={() => setInstallInterval(iv)}
+                            className={clsx(
+                              'flex-1 py-1.5 rounded-lg text-xs font-semibold border capitalize transition-colors',
+                              installInterval === iv
+                                ? 'bg-primary-600 text-white border-primary-600'
+                                : 'border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300',
+                            )}
+                          >{iv}</button>
+                        ))}
+                      </div>
+                    </div>
+                    {/* First payment date */}
+                    <div>
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400 mb-1">First payment</p>
+                      <input
+                        type="date" className="input text-xs py-1.5"
+                        value={installStart}
+                        min={new Date().toISOString().slice(0, 10)}
+                        onChange={(e) => setInstallStart(e.target.value)}
+                      />
+                    </div>
+                    {/* Schedule preview */}
+                    {installmentLines.length > 0 && (
+                      <div className="space-y-1 pt-1 border-t border-slate-200 dark:border-slate-700">
+                        <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Schedule</p>
+                        {installmentLines.map((inst, i) => (
+                          <div key={i} className="flex justify-between text-[11px]">
+                            <span className="text-slate-500 flex items-center gap-1">
+                              <Calendar size={9} className="text-slate-400" />
+                              {new Date(inst.dueDate + 'T00:00:00').toLocaleDateString('en-RW', { day: 'numeric', month: 'short', year: 'numeric' })}
+                            </span>
+                            <span className="font-semibold text-slate-700 dark:text-slate-200 tabular-nums">
+                              RWF {inst.amount.toLocaleString()}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  /* Single due date (no installments) */
+                  <div>
+                    <label className="text-xs font-medium text-slate-600 dark:text-slate-400 block mb-1">
+                      Full payment due by <span className="font-normal text-slate-400">(optional)</span>
+                    </label>
+                    <input
+                      type="date" className="input text-sm"
+                      value={creditDueDate}
+                      min={new Date().toISOString().slice(0, 10)}
+                      onChange={(e) => setCreditDueDate(e.target.value)}
+                    />
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -290,15 +403,21 @@ function PaymentModal({
         {/* Confirm button */}
         <div className="p-3 pt-0">
           <button
-            onClick={() =>
+            onClick={() => {
+              const lastDue = installmentsOn && installmentLines.length > 0
+                ? installmentLines[installmentLines.length - 1].dueDate
+                : (creditDueDate || undefined);
               onConfirm(
                 paymentMethod === 'cash' && tenderedNum > 0 ? tenderedNum : undefined,
-                paymentMethod === 'credit' && creditDueDate ? creditDueDate : undefined,
+                paymentMethod === 'credit' ? lastDue : undefined,
                 paymentMethod === 'credit' && parseFloat(creditUpfront) > 0
                   ? Math.round(parseFloat(creditUpfront))
                   : undefined,
-              )
-            }
+                paymentMethod === 'credit' && installmentsOn && installmentLines.length > 0
+                  ? installmentLines
+                  : undefined,
+              );
+            }}
             disabled={isPending || !canConfirm}
             className="btn-primary w-full text-base py-3 disabled:opacity-50"
           >
@@ -763,11 +882,13 @@ export function SellPage() {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
   const [showPayment, setShowPayment] = useState(false);
   const [customerSearch, setCustomerSearch] = useState('');
-  const [manualCustomerPhone, setManualCustomerPhone] = useState('');
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [showMobileCart, setShowMobileCart] = useState(false);
   const [receiptSale, setReceiptSale] = useState<Sale | null>(null);
   const [receiptUrl, setReceiptUrl] = useState<string | undefined>();
+  const [showQuickAdd, setShowQuickAdd] = useState(false);
+  const [quickAddPhone, setQuickAddPhone] = useState('');
+  const quickAddNameRef = useRef('');
 
   // Data
   const shopQ = useQuery({
@@ -805,12 +926,25 @@ export function SellPage() {
       setDiscount(0);
       setSelectedCustomer(null);
       setCustomerSearch('');
-      setManualCustomerPhone('');
+      setShowQuickAdd(false);
+      setQuickAddPhone('');
       setShowPayment(false);
       setShowMobileCart(false);
       qc.invalidateQueries({ queryKey: ['sales'] });
       qc.invalidateQueries({ queryKey: ['inventory', 'products'] });
       qc.invalidateQueries({ queryKey: ['inventory', 'stats'] });
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const createCustomer = useMutation({
+    mutationFn: customersApi.create,
+    onSuccess: (data) => {
+      setSelectedCustomer(data.customer);
+      setCustomerSearch('');
+      setShowQuickAdd(false);
+      setQuickAddPhone('');
+      qc.invalidateQueries({ queryKey: ['sales', 'customers'] });
     },
     onError: (e) => toast.error(e.message),
   });
@@ -878,9 +1012,9 @@ export function SellPage() {
   const removeFromCart = (productId: string) =>
     setCart((prev) => prev.filter((l) => l.product._id !== productId));
 
-  const handleConfirmPayment = (tendered?: number, creditDueDate?: string, creditUpfront?: number) => {
+  const handleConfirmPayment = (tendered?: number, creditDueDate?: string, creditUpfront?: number, installments?: InstallmentLine[]) => {
     const custName = selectedCustomer?.name ?? (customerSearch.trim() || undefined);
-    const custPhone = selectedCustomer?.phone ?? (manualCustomerPhone.trim() || undefined);
+    const custPhone = selectedCustomer?.phone;
     completeSale.mutate({
       items: cart.map((l) => ({ productId: l.product._id, qty: l.qty })),
       discountAmount: discountAmt,
@@ -891,6 +1025,7 @@ export function SellPage() {
       customerPhone: custPhone,
       creditDueDate,
       creditUpfrontAmount: creditUpfront,
+      creditInstallments: installments,
     });
   };
 
@@ -987,45 +1122,105 @@ export function SellPage() {
               )}
             </div>
             <button
-              onClick={() => { setSelectedCustomer(null); setCustomerSearch(''); setManualCustomerPhone(''); }}
+              onClick={() => { setSelectedCustomer(null); setCustomerSearch(''); setShowQuickAdd(false); }}
               className="text-blue-400 hover:text-blue-600 flex-shrink-0 ml-2"
             >
               <X size={14} />
             </button>
           </div>
-        ) : (
+        ) : showQuickAdd ? (
+          /* ── Inline quick-add form ─────────────────────────────── */
           <div className="space-y-1.5">
-            <div className="relative">
-              <input
-                className="input text-xs py-1.5"
-                placeholder="Search customer (optional)…"
-                value={customerSearch}
-                onChange={(e) => setCustomerSearch(e.target.value)}
-              />
-              {customersQ.data && customersQ.data.customers.length > 0 && customerSearch && (
-                <div className="absolute z-10 bottom-full mb-1 left-0 right-0 bg-white dark:bg-slate-800 rounded-lg shadow-xl border border-slate-200 dark:border-slate-700 max-h-36 overflow-y-auto">
-                  {customersQ.data.customers.map((c) => (
-                    <button
-                      key={c._id}
-                      onClick={() => { setSelectedCustomer(c); setCustomerSearch(''); setManualCustomerPhone(''); }}
-                      className="w-full text-left px-3 py-2 text-xs hover:bg-slate-50 dark:hover:bg-slate-700 flex items-center gap-2"
-                    >
-                      <span className="font-medium text-slate-800 dark:text-slate-200">{c.name}</span>
-                      {c.phone && <span className="text-slate-400">{c.phone}</span>}
-                    </button>
-                  ))}
-                </div>
-              )}
+            <div className="flex items-center gap-1.5 mb-0.5">
+              <UserPlus size={12} className="text-primary-600 flex-shrink-0" />
+              <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">New customer</span>
             </div>
+            <input
+              className="input text-xs py-1.5"
+              placeholder="Name"
+              defaultValue={quickAddNameRef.current}
+              onChange={(e) => { quickAddNameRef.current = e.target.value; }}
+            />
+            <div className="relative">
+              <Phone size={11} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                className="input text-xs py-1.5 pl-7"
+                placeholder="Phone"
+                value={quickAddPhone}
+                onChange={(e) => setQuickAddPhone(e.target.value)}
+                autoFocus
+              />
+            </div>
+            <div className="flex gap-1.5 pt-0.5">
+              <button
+                onClick={() => { setShowQuickAdd(false); setQuickAddPhone(''); }}
+                className="flex-1 py-1.5 text-xs rounded-lg border border-slate-200 dark:border-slate-600 text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  const name = quickAddNameRef.current.trim();
+                  if (!name) return;
+                  createCustomer.mutate({ name, phone: quickAddPhone.trim() || undefined });
+                }}
+                disabled={createCustomer.isPending}
+                className="flex-1 py-1.5 text-xs rounded-lg bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-50 font-medium"
+              >
+                {createCustomer.isPending ? 'Saving…' : 'Add Customer'}
+              </button>
+            </div>
+          </div>
+        ) : (
+          /* ── Customer search ───────────────────────────────────── */
+          <div className="relative">
+            <Search size={11} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+            <input
+              className="input text-xs py-1.5 pl-7 pr-7"
+              placeholder="Customer name or phone (optional)…"
+              value={customerSearch}
+              onChange={(e) => { setCustomerSearch(e.target.value); setShowQuickAdd(false); }}
+            />
             {customerSearch && (
-              <div className="relative">
-                <Phone size={11} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
-                <input
-                  className="input text-xs py-1.5 pl-7"
-                  placeholder="Phone (saves to customer list)…"
-                  value={manualCustomerPhone}
-                  onChange={(e) => setManualCustomerPhone(e.target.value)}
-                />
+              <button
+                onClick={() => setCustomerSearch('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+              >
+                <X size={12} />
+              </button>
+            )}
+            {/* Dropdown */}
+            {customerSearch.length >= 1 && (
+              <div className="absolute z-10 bottom-full mb-1 left-0 right-0 bg-white dark:bg-slate-800 rounded-lg shadow-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+                {customersQ.data && customersQ.data.customers.length > 0 ? (
+                  <>
+                    <div className="max-h-28 overflow-y-auto">
+                      {customersQ.data.customers.map((c) => (
+                        <button
+                          key={c._id}
+                          onClick={() => { setSelectedCustomer(c); setCustomerSearch(''); }}
+                          className="w-full text-left px-3 py-2 text-xs hover:bg-slate-50 dark:hover:bg-slate-700 flex items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-700 last:border-0"
+                        >
+                          <span className="font-medium text-slate-800 dark:text-slate-200 truncate">{c.name}</span>
+                          {c.phone && <span className="text-slate-400 flex-shrink-0 flex items-center gap-0.5"><Phone size={9} />{c.phone}</span>}
+                        </button>
+                      ))}
+                    </div>
+                    <button
+                      onClick={() => { quickAddNameRef.current = customerSearch; setShowQuickAdd(true); setCustomerSearch(''); }}
+                      className="w-full text-left px-3 py-2 text-xs text-primary-600 dark:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-900/20 flex items-center gap-1.5 font-medium border-t border-slate-100 dark:border-slate-700"
+                    >
+                      <UserPlus size={11} /> Add "{customerSearch}" as new customer
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    onClick={() => { quickAddNameRef.current = customerSearch; setShowQuickAdd(true); setCustomerSearch(''); }}
+                    className="w-full text-left px-3 py-2 text-xs text-primary-600 dark:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-900/20 flex items-center gap-1.5 font-medium"
+                  >
+                    <UserPlus size={11} /> Add "{customerSearch}" as new customer
+                  </button>
+                )}
               </div>
             )}
           </div>
