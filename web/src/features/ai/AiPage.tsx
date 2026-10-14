@@ -154,7 +154,7 @@ export function AiPage() {
             <Sparkles size={18} className="text-white" />
           </div>
           <div>
-            <h1 className="text-base font-bold text-slate-900 dark:text-slate-100">BERT</h1>
+            <h1 className="text-base font-bold text-slate-900 dark:text-slate-100">VANBERT</h1>
             <p className="text-xs text-slate-400">AI Business Assistant</p>
           </div>
         </div>
@@ -178,7 +178,7 @@ export function AiPage() {
               <div className="w-16 h-16 rounded-2xl bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center mx-auto mb-4">
                 <Sparkles size={32} className="text-orange-600" />
               </div>
-              <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100">Hey, I'm BERT</h2>
+              <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100">Hey, I'm VANBERT</h2>
               <p className="mt-2 text-sm text-slate-500 dark:text-slate-400 max-w-sm">
                 Your AI business assistant. Ask me about your sales, stock, expenses — or anything about running your shop better.
               </p>
@@ -216,7 +216,7 @@ export function AiPage() {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Ask BERT anything about your shop…"
+            placeholder="Ask VANBERT anything about your shop…"
             rows={1}
             className="flex-1 resize-none bg-transparent text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none min-h-[24px] max-h-32"
             style={{ height: 'auto' }}
@@ -240,7 +240,7 @@ export function AiPage() {
           </button>
         </div>
         <p className="text-[10px] text-slate-400 text-center mt-2">
-          BERT uses live shop data · {50} messages/day
+          VANBERT uses live shop data · {50} messages/day
         </p>
       </div>
     </div>
