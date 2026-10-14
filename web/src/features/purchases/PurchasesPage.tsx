@@ -7,10 +7,11 @@ import { toast } from 'sonner';
 import {
   Plus, ShoppingBag, X, Trash2, CheckCircle, ChevronDown,
   XCircle, Search, Printer, Download, FileText, Package,
-  ChevronLeft, ChevronRight, MoreHorizontal,
+  ChevronLeft, ChevronRight, MoreHorizontal, AlertTriangle, RefreshCw,
 } from 'lucide-react';
-import { purchasesApi, suppliersApi, productsApi, type PurchaseOrder } from '@/lib/inventoryApi';
+import { purchasesApi, suppliersApi, productsApi, type PurchaseOrder, type Product } from '@/lib/inventoryApi';
 import { exportCSV, printTable, exportPDF } from '@/lib/exportUtils';
+import { RestockModal } from '@/components/RestockModal';
 import { clsx } from 'clsx';
 
 const PO_COLS = [
@@ -411,6 +412,7 @@ type FilterTab = typeof FILTER_TABS[number];
 export function PurchasesPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<PurchaseOrder | null>(null);
+  const [restockTarget, setRestockTarget] = useState<Product | null>(null);
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<FilterTab>('all');
@@ -423,6 +425,13 @@ export function PurchasesPage() {
     staleTime: 15_000,
     placeholderData: (prev) => prev,
   });
+
+  const lowStockQ = useQuery({
+    queryKey: ['inventory', 'lowStock'],
+    queryFn: () => productsApi.list({ lowStock: true, limit: 20 }),
+    staleTime: 30_000,
+  });
+  const lowStockItems = lowStockQ.data?.products ?? [];
 
   const receive = useMutation({
     mutationFn: (id: string) => purchasesApi.receive(id),
@@ -513,6 +522,39 @@ export function PurchasesPage() {
           </button>
         </div>
       </div>
+
+      {/* Low stock alerts */}
+      {lowStockItems.length > 0 && (
+        <div className="rounded-xl border border-amber-200 dark:border-amber-800/50 bg-amber-50 dark:bg-amber-900/10 overflow-hidden">
+          <div className="flex items-center gap-2 px-4 py-2.5 border-b border-amber-200 dark:border-amber-800/50">
+            <AlertTriangle size={14} className="text-amber-500 flex-shrink-0" />
+            <span className="text-sm font-semibold text-amber-800 dark:text-amber-300">
+              {lowStockItems.length} item{lowStockItems.length !== 1 ? 's' : ''} need restocking
+            </span>
+          </div>
+          <div className="divide-y divide-amber-100 dark:divide-amber-800/30">
+            {lowStockItems.map((p) => {
+              const isOut = p.stockQty === 0;
+              return (
+                <div key={p._id} className="flex items-center gap-3 px-4 py-2.5">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-slate-800 dark:text-slate-200 truncate">{p.name}</p>
+                    <p className={clsx('text-xs font-semibold tabular-nums', isOut ? 'text-red-500' : 'text-amber-600')}>
+                      {isOut ? 'Out of stock' : `${p.stockQty} ${p.unit} left`}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setRestockTarget(p)}
+                    className="flex-shrink-0 flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-white dark:bg-slate-800 border border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/30 transition-colors shadow-sm"
+                  >
+                    <RefreshCw size={11} /> Restock
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Search */}
       <div className="relative">
@@ -617,6 +659,10 @@ export function PurchasesPage() {
       )}
 
       <CreatePOModal open={createOpen} onClose={() => setCreateOpen(false)} />
+
+      {restockTarget && (
+        <RestockModal product={restockTarget} onClose={() => setRestockTarget(null)} />
+      )}
 
       {/* Delete confirm */}
       {deleteTarget && (

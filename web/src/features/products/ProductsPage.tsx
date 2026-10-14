@@ -9,7 +9,8 @@ import {
   Plus, Search, Upload, Edit2, Package, Sliders, X, Trash2, TrendingUp, Printer, Download, FileText,
   ShoppingCart, RefreshCw,
 } from 'lucide-react';
-import { productsApi, purchasesApi, suppliersApi, type TopSeller, type Supplier, Product } from '@/lib/inventoryApi';
+import { productsApi, type TopSeller, Product } from '@/lib/inventoryApi';
+import { RestockModal } from '@/components/RestockModal';
 import { exportCSV, printTable, exportPDF } from '@/lib/exportUtils';
 
 const PRODUCT_COLS = [
@@ -248,132 +249,6 @@ function CsvModal({ open, onClose }: { open: boolean; onClose: () => void }) {
           )}
 
           <button onClick={onClose} className="btn-secondary w-full">Close</button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ── Restock Modal ─────────────────────────────────────────────────────────────
-
-function RestockModal({ product, onClose }: { product: Product; onClose: () => void }) {
-  const qc = useQueryClient();
-  const [qty, setQty] = useState('');
-  const [unitCost, setUnitCost] = useState(String(product.costPrice || ''));
-  const [sellingPrice, setSellingPrice] = useState(String(product.sellingPrice || ''));
-  const [supplierId, setSupplierId] = useState('');
-  const [notes, setNotes] = useState('');
-
-  const suppliersQ = useQuery({
-    queryKey: ['inventory', 'suppliers'],
-    queryFn: () => suppliersApi.list(),
-    staleTime: 60_000,
-  });
-  const suppliers: Supplier[] = suppliersQ.data?.suppliers ?? [];
-
-  const mutation = useMutation({
-    mutationFn: async () => {
-      const costNum = parseInt(unitCost) || 0;
-      const sellNum = parseInt(sellingPrice) || 0;
-      const { order } = await purchasesApi.create({
-        supplierId: supplierId || undefined,
-        lines: [{ productId: product._id, qty: parseInt(qty), unitCost: costNum }],
-        notes: notes || undefined,
-      });
-      await purchasesApi.receive(order._id);
-      if (costNum !== product.costPrice || sellNum !== product.sellingPrice) {
-        await productsApi.update(product._id, { costPrice: costNum, sellingPrice: sellNum });
-      }
-    },
-    onSuccess: () => {
-      toast.success(`${parseInt(qty)} ${product.unit} added to ${product.name}`);
-      qc.invalidateQueries({ queryKey: ['inventory', 'products'] });
-      qc.invalidateQueries({ queryKey: ['inventory', 'purchases'] });
-      qc.invalidateQueries({ queryKey: ['inventory', 'stats'] });
-      onClose();
-    },
-    onError: (e) => toast.error(e.message),
-  });
-
-  const qtyNum = parseInt(qty) || 0;
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
-      <div className="relative bg-white dark:bg-slate-800 rounded-xl w-full max-w-sm shadow-2xl p-5">
-        <div className="flex items-center gap-3 mb-4">
-          <RefreshCw size={18} className="text-blue-600 flex-shrink-0" />
-          <div>
-            <p className="font-semibold text-slate-900 dark:text-slate-100">Receive Stock — {product.name}</p>
-            <p className="text-xs text-slate-400">Current: {product.stockQty} {product.unit}</p>
-          </div>
-        </div>
-        <div className="space-y-3">
-          <div>
-            <label className="label text-xs">Qty received *</label>
-            <input
-              type="number"
-              min={1}
-              className="input mt-1 text-sm"
-              placeholder="e.g. 20"
-              value={qty}
-              onChange={(e) => setQty(e.target.value)}
-            />
-            {qtyNum > 0 && (
-              <p className="text-xs text-green-600 mt-1">→ {product.stockQty + qtyNum} {product.unit}</p>
-            )}
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="label text-xs">Cost Price (RWF)</label>
-              <input
-                type="number"
-                min={0}
-                className="input mt-1 text-sm"
-                placeholder="0"
-                value={unitCost}
-                onChange={(e) => setUnitCost(e.target.value)}
-              />
-            </div>
-            <div>
-              <label className="label text-xs">Selling Price (RWF)</label>
-              <input
-                type="number"
-                min={0}
-                className="input mt-1 text-sm"
-                placeholder="0"
-                value={sellingPrice}
-                onChange={(e) => setSellingPrice(e.target.value)}
-              />
-            </div>
-          </div>
-          <div>
-            <label className="label text-xs">Supplier</label>
-            <select
-              className="input mt-1 text-sm"
-              value={supplierId}
-              onChange={(e) => setSupplierId(e.target.value)}
-            >
-              <option value="">Unknown / Walk-in</option>
-              {suppliers.map((s) => (
-                <option key={s._id} value={s._id}>{s.name}</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="label text-xs">Notes</label>
-            <input className="input mt-1 text-sm" placeholder="Optional…" value={notes} onChange={(e) => setNotes(e.target.value)} />
-          </div>
-        </div>
-        <div className="flex gap-2 mt-4">
-          <button className="btn-ghost flex-1" onClick={onClose}>Cancel</button>
-          <button
-            className="btn-primary flex-1"
-            disabled={qtyNum <= 0 || mutation.isPending}
-            onClick={() => mutation.mutate()}
-          >
-            {mutation.isPending ? 'Saving…' : 'Confirm Receipt'}
-          </button>
         </div>
       </div>
     </div>
