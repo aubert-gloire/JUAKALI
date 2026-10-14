@@ -60,11 +60,14 @@ function CreatePOModal({ open, onClose }: { open: boolean; onClose: () => void }
   const suppliersQ = useQuery({ queryKey: ['inventory', 'suppliers'], queryFn: () => suppliersApi.list(), staleTime: 60_000 });
   const productsQ  = useQuery({ queryKey: ['inventory', 'products', '', '', 1], queryFn: () => productsApi.list({ limit: 200 }), staleTime: 30_000 });
 
+  const [supplierInput, setSupplierInput] = useState('');
+  const [supplierOpen, setSupplierOpen] = useState(false);
   const {
     register,
     control,
     handleSubmit,
     watch,
+    setValue,
     formState: { errors, isSubmitting },
     reset,
   } = useForm<FormData>({
@@ -85,6 +88,7 @@ function CreatePOModal({ open, onClose }: { open: boolean; onClose: () => void }
       toast.success('Purchase order created');
       onClose();
       reset();
+      setSupplierInput('');
     },
     onError: (e) => toast.error(e.message),
   });
@@ -105,44 +109,82 @@ function CreatePOModal({ open, onClose }: { open: boolean; onClose: () => void }
         </div>
 
         <form onSubmit={handleSubmit((d) => create.mutate(d))} className="p-4 space-y-4">
-          {/* Supplier */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="label">Supplier</label>
-              <div className="relative mt-1">
-                <select {...register('supplierId')} className="input pr-8 appearance-none">
-                  <option value="">— Select supplier —</option>
-                  {suppliers.map((s) => <option key={s._id} value={s._id}>{s.name}</option>)}
-                </select>
-                <ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-              </div>
-              {selectedSupplier && (selectedSupplier.phone || selectedSupplier.email) && (
-                <div className="mt-1.5 flex flex-wrap gap-2 text-[10px] text-slate-500">
-                  {selectedSupplier.phone && (
-                    <a
-                      href={`https://wa.me/${selectedSupplier.phone.replace(/\D/g, '')}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center gap-1 text-green-600 hover:text-green-700 font-medium"
-                    >
-                      📞 {selectedSupplier.phone}
-                    </a>
-                  )}
-                  {selectedSupplier.email && (
-                    <a
-                      href={`mailto:${selectedSupplier.email}`}
-                      className="flex items-center gap-1 text-blue-600 hover:text-blue-700"
-                    >
-                      ✉ {selectedSupplier.email}
-                    </a>
-                  )}
+          {/* Supplier combobox */}
+          <div>
+            <label className="label">Supplier</label>
+            <div className="relative mt-1">
+              <input
+                className="input"
+                placeholder="Type name or pick from list…"
+                value={supplierInput}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setSupplierInput(v);
+                  setValue('supplierName', v || undefined);
+                  setValue('supplierId', undefined);
+                  setSupplierOpen(true);
+                }}
+                onFocus={() => setSupplierOpen(true)}
+                onBlur={() => setTimeout(() => setSupplierOpen(false), 150)}
+                autoComplete="off"
+              />
+              {supplierInput && (
+                <button
+                  type="button"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                  onMouseDown={(e) => { e.preventDefault(); setSupplierInput(''); setValue('supplierName', undefined); setValue('supplierId', undefined); }}
+                >
+                  <X size={13} />
+                </button>
+              )}
+              {supplierOpen && suppliers.filter((s) => s.name.toLowerCase().includes(supplierInput.toLowerCase())).length > 0 && (
+                <div className="absolute z-20 mt-1 w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-lg max-h-40 overflow-y-auto">
+                  {suppliers
+                    .filter((s) => s.name.toLowerCase().includes(supplierInput.toLowerCase()))
+                    .map((s) => (
+                      <button
+                        key={s._id}
+                        type="button"
+                        className="w-full text-left px-3 py-2 text-sm hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors"
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          setSupplierInput(s.name);
+                          setValue('supplierId', s._id);
+                          setValue('supplierName', s.name);
+                          setSupplierOpen(false);
+                        }}
+                      >
+                        {s.name}
+                        {(s.phone || s.email) && (
+                          <span className="ml-2 text-[10px] text-slate-400">{s.phone ?? s.email}</span>
+                        )}
+                      </button>
+                    ))}
                 </div>
               )}
             </div>
-            <div>
-              <label className="label">Or enter supplier name</label>
-              <input {...register('supplierName')} className="input mt-1" placeholder="Walk-in / unknown" />
-            </div>
+            {selectedSupplier && (selectedSupplier.phone || selectedSupplier.email) && (
+              <div className="mt-1.5 flex flex-wrap gap-2 text-[10px] text-slate-500">
+                {selectedSupplier.phone && (
+                  <a
+                    href={`https://wa.me/${selectedSupplier.phone.replace(/\D/g, '')}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1 text-green-600 hover:text-green-700 font-medium"
+                  >
+                    📞 {selectedSupplier.phone}
+                  </a>
+                )}
+                {selectedSupplier.email && (
+                  <a
+                    href={`mailto:${selectedSupplier.email}`}
+                    className="flex items-center gap-1 text-blue-600 hover:text-blue-700"
+                  >
+                    ✉ {selectedSupplier.email}
+                  </a>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Lines */}

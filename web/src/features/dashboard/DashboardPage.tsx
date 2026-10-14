@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import {
@@ -120,6 +121,7 @@ function ChartTooltip({
 // ── Dashboard ─────────────────────────────────────────────────────────────────
 
 export function DashboardPage() {
+  const navigate = useNavigate();
   const [range, setRange] = useState<RangeKey>('today');
 
   const statsQ = useQuery({
@@ -350,20 +352,23 @@ export function DashboardPage() {
                           {isOut ? 'OUT OF STOCK' : `${p.stockQty} left`}
                         </p>
                       </div>
-                      <a
-                        href="#/purchases"
+                      <button
+                        onClick={() => navigate('/purchases')}
                         className="text-[10px] font-medium text-primary-600 dark:text-primary-400 hover:underline flex-shrink-0 flex items-center gap-0.5"
                         title="Create purchase order"
                       >
                         Order <ExternalLink size={9} />
-                      </a>
+                      </button>
                     </div>
                   );
                 })}
                 {(lowStockQ.data?.total ?? 0) > lowStockItems.length && (
-                  <p className="text-[10px] text-slate-400 text-center pt-1">
-                    +{(lowStockQ.data!.total) - lowStockItems.length} more — check Products page
-                  </p>
+                  <button
+                    onClick={() => navigate('/purchases')}
+                    className="text-[10px] text-primary-500 hover:underline text-center pt-1 w-full"
+                  >
+                    +{(lowStockQ.data!.total) - lowStockItems.length} more — view stock orders
+                  </button>
                 )}
               </div>
             )}

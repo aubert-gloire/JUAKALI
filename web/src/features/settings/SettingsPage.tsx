@@ -11,7 +11,7 @@ import {
   MoreVertical, UserCheck, UserX, Key, Camera,
 } from 'lucide-react';
 import { settingsApi, type ShopStaff, type ShopDetails } from '@/lib/settingsApi';
-import { useAuth } from '@/hooks/useAuth';
+import { useAuth, type AuthUser, type ShopMembership } from '@/hooks/useAuth';
 import { clsx } from 'clsx';
 
 // ── Role badge ────────────────────────────────────────────────────────────────
@@ -594,21 +594,31 @@ function AccountTab({ user }: { user: { name: string; email: string; profilePict
   const profileMut = useMutation({
     mutationFn: (body: Parameters<typeof settingsApi.updateProfile>[0]) =>
       settingsApi.updateProfile(body),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['auth', 'me'] }),
+    onSuccess: (data) => {
+      qc.setQueryData<{ user: AuthUser; memberships: ShopMembership[] }>(
+        ['auth', 'me'],
+        (old) => old ? { ...old, user: { ...old.user, profilePicture: data.user.profilePicture } } : old,
+      );
+      qc.invalidateQueries({ queryKey: ['auth', 'me'] });
+    },
     onError: (e) => toast.error(e.message),
   });
 
   const handlePicture = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
-    try {
-      const base64 = await resizeToBase64(file);
-      await profileMut.mutateAsync({ profilePicture: base64 });
-      toast.success('Profile picture updated');
-    } catch {
-      toast.error('Failed to upload picture');
-    }
     e.target.value = '';
+    if (!file) return;
+    let base64: string;
+    try {
+      base64 = await resizeToBase64(file);
+    } catch {
+      toast.error('Could not process the selected image');
+      return;
+    }
+    profileMut.mutate(
+      { profilePicture: base64 },
+      { onSuccess: () => toast.success('Profile picture updated') },
+    );
   };
 
   const handleLanguage = (code: 'en' | 'fr' | 'rw') => {
