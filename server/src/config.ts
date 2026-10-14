@@ -19,7 +19,7 @@ const envSchema = z.object({
   CRON_SECRET: z.string().optional(),
 
   AI_PROVIDER: z.enum(['gemini']).default('gemini'),
-  AI_MODEL: z.string().default('gemini-1.5-flash'),
+  AI_MODEL: z.string().default('gemini-2.0-flash'),
   GEMINI_API_KEY: z.string().optional(),
 
   BILLING_ENABLED: z

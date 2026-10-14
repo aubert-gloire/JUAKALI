@@ -129,7 +129,7 @@ async function buildShopContext(shopId: Types.ObjectId): Promise<string> {
 // ── System prompt ──────────────────────────────────────────────────────────────
 
 function buildSystemPrompt(shopContext: string): string {
-  return `You are BERT, an AI business assistant for a spare parts shop management system called JUAKALI.
+  return `You are VANBERT, an AI business assistant for a spare parts shop management system called JUAKALI.
 You help shop owners and managers in Rwanda understand their business data, make smart decisions, and grow their shop.
 
 CURRENT SHOP DATA:
@@ -146,6 +146,19 @@ YOUR ROLE:
 TONE: Friendly, professional, direct. Like a trusted business advisor who knows your shop.`;
 }
 
+// ── Shop context cache (per shop, 2-minute TTL) ────────────────────────────────
+
+const contextCache = new Map<string, { context: string; expiresAt: number }>();
+
+async function getCachedShopContext(shopId: Types.ObjectId): Promise<string> {
+  const key = shopId.toString();
+  const cached = contextCache.get(key);
+  if (cached && cached.expiresAt > Date.now()) return cached.context;
+  const context = await buildShopContext(shopId);
+  contextCache.set(key, { context, expiresAt: Date.now() + 2 * 60_000 });
+  return context;
+}
+
 // ── Main chat function ─────────────────────────────────────────────────────────
 
 export async function chat(
@@ -157,7 +170,7 @@ export async function chat(
     throw Errors.validation('AI assistant is not configured. Add GEMINI_API_KEY to your environment.');
   }
 
-  const shopContext = await buildShopContext(shopId);
+  const shopContext = await getCachedShopContext(shopId);
   const systemPrompt = buildSystemPrompt(shopContext);
 
   const genAI = new GoogleGenerativeAI(config.GEMINI_API_KEY);
@@ -166,14 +179,21 @@ export async function chat(
     systemInstruction: systemPrompt,
   });
 
-  // Convert our history format to Gemini's format
   const geminiHistory = history.map((m) => ({
     role: m.role,
     parts: [{ text: m.text }],
   }));
 
-  const chatSession = model.startChat({ history: geminiHistory });
-  const result = await chatSession.sendMessage(userMessage);
-  return result.response.text();
+  try {
+    const chatSession = model.startChat({ history: geminiHistory });
+    const result = await chatSession.sendMessage(userMessage);
+    return result.response.text();
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (msg.includes('429') || msg.toLowerCase().includes('quota') || msg.toLowerCase().includes('rate')) {
+      throw Errors.rateLimited('VANBERT is busy right now — please wait a moment and try again.');
+    }
+    throw Errors.internal('VANBERT could not respond. Please try again.');
+  }
 }
 
