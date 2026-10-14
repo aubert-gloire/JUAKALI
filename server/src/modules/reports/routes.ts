@@ -177,7 +177,7 @@ reportsRouter.get(
             lowStock: {
               $sum: {
                 $cond: [
-                  { $and: [{ $gt: ['$stockQty', 0] }, { $lte: ['$stockQty', '$reorderLevel'] }] },
+                  { $and: [{ $gt: ['$stockQty', 0] }, { $lte: ['$stockQty', 3] }] },
                   1,
                   0,
                 ],

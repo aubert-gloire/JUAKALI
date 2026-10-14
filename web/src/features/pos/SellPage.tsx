@@ -8,7 +8,7 @@ import {
   Printer, MessageCircle, CheckCircle, Download, Link, Phone, UserPlus,
   Calendar,
 } from 'lucide-react';
-import { productsApi, categoriesApi, type Product, type Category } from '@/lib/inventoryApi';
+import { productsApi, type Product } from '@/lib/inventoryApi';
 import { salesApi, customersApi, type PaymentMethod, type Sale, type Customer, PAYMENT_LABELS } from '@/lib/salesApi';
 import { settingsApi, type ShopDetails } from '@/lib/settingsApi';
 import { creditsApi } from '@/lib/creditsApi';
@@ -39,8 +39,6 @@ function ProductCard({
   product: Product;
   onAdd: (p: Product) => void;
 }) {
-  const cat = product.categoryId as Category | null;
-  const color = cat?.color ?? '#6B7280';
   const outOfStock = product.stockQty === 0;
 
   return (
@@ -54,15 +52,11 @@ function ProductCard({
           : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-primary-300 hover:shadow-md dark:hover:border-primary-700 active:scale-[0.97]',
       )}
     >
-      {/* Out of stock overlay label */}
       {outOfStock && (
         <span className="absolute top-2 right-2 text-[9px] font-bold uppercase tracking-wide bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400 px-1.5 py-0.5 rounded">
           No stock
         </span>
       )}
-
-      {/* Category color strip */}
-      <div className="w-8 h-1.5 rounded-full mb-2" style={{ backgroundColor: outOfStock ? '#94a3b8' : color }} />
 
       <p className="text-xs font-semibold text-slate-800 dark:text-slate-100 line-clamp-2 leading-tight flex-1">
         {product.name}
@@ -74,14 +68,10 @@ function ProductCard({
           {product.sellingPrice.toLocaleString()}
         </span>
         {!outOfStock && (
-          <span
-            className={clsx(
-              'text-[10px] font-medium px-1.5 py-0.5 rounded-full',
-              product.stockQty <= product.reorderLevel
-                ? 'bg-amber-100 text-amber-600'
-                : 'bg-green-100 text-green-600',
-            )}
-          >
+          <span className={clsx(
+            'text-[10px] font-medium px-1.5 py-0.5 rounded-full',
+            product.stockQty <= 3 ? 'bg-amber-100 text-amber-600' : 'bg-green-100 text-green-600',
+          )}>
             {product.stockQty}
           </span>
         )}
@@ -874,7 +864,6 @@ export function SellPage() {
 
   // Product search & filter state
   const [search, setSearch] = useState('');
-  const [activeCat, setActiveCat] = useState('');
 
   // Cart state
   const [cart, setCart] = useState<CartLine[]>([]);
@@ -898,15 +887,9 @@ export function SellPage() {
   });
   const shop = shopQ.data?.shop;
 
-  const catsQ = useQuery({
-    queryKey: ['inventory', 'categories'],
-    queryFn: () => categoriesApi.list(),
-    staleTime: 60_000,
-  });
-
   const productsQ = useQuery({
-    queryKey: ['inventory', 'products', search, activeCat, 1],
-    queryFn: () => productsApi.list({ search: search || undefined, category: activeCat || undefined, limit: 100 }),
+    queryKey: ['inventory', 'products', search, 1],
+    queryFn: () => productsApi.list({ search: search || undefined, limit: 100 }),
     staleTime: 15_000,
   });
 
@@ -1029,7 +1012,6 @@ export function SellPage() {
     });
   };
 
-  const categories = catsQ.data?.categories ?? [];
   const products = productsQ.data?.products ?? [];
 
   // ── Cart panel (shared between desktop and mobile modal) ─────────────────
@@ -1319,36 +1301,6 @@ export function SellPage() {
               </span>
             )}
           </button>
-        </div>
-
-        {/* Category pills */}
-        <div className="flex gap-1.5 px-3 md:px-4 py-2 overflow-x-auto border-b border-slate-100 dark:border-slate-800 scrollbar-none bg-white dark:bg-slate-900">
-          <button
-            onClick={() => setActiveCat('')}
-            className={clsx(
-              'flex-shrink-0 text-xs font-medium px-3 py-1 rounded-full border transition-colors',
-              activeCat === ''
-                ? 'bg-primary-600 border-primary-600 text-white'
-                : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-primary-300',
-            )}
-          >
-            All
-          </button>
-          {categories.map((c) => (
-            <button
-              key={c._id}
-              onClick={() => setActiveCat(activeCat === c._id ? '' : c._id)}
-              className={clsx(
-                'flex-shrink-0 text-xs font-medium px-3 py-1 rounded-full border transition-colors',
-                activeCat === c._id
-                  ? 'text-white border-transparent'
-                  : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-primary-300',
-              )}
-              style={activeCat === c._id ? { backgroundColor: c.color } : {}}
-            >
-              {c.name}
-            </button>
-          ))}
         </div>
 
         {/* Product grid */}

@@ -70,10 +70,8 @@ async function buildShopContext(shopId: Types.ObjectId): Promise<string> {
         },
       ]),
 
-      Product.find({ shopId, isActive: true })
-        .where('stockQty')
-        .lte(5)
-        .select('name stockQty reorderLevel')
+      Product.find({ shopId, isActive: true, stockQty: { $lte: 3 } })
+        .select('name stockQty')
         .sort({ stockQty: 1 })
         .limit(10)
         .lean(),
@@ -106,7 +104,7 @@ async function buildShopContext(shopId: Types.ObjectId): Promise<string> {
   if (lowStock.length > 0) {
     lines.push('LOW / OUT OF STOCK:');
     lowStock.forEach((p) => {
-      lines.push(`  - ${p.name}: ${p.stockQty} units (min ${p.reorderLevel ?? 0})`);
+      lines.push(`  - ${p.name}: ${p.stockQty} units`);
     });
     lines.push('');
   }

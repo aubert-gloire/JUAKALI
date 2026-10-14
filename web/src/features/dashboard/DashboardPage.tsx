@@ -29,8 +29,6 @@ interface LowStockProduct {
   name: string;
   sku: string;
   stockQty: number;
-  reorderLevel: number;
-  categoryId?: { name: string; color: string } | null;
 }
 
 type RangeKey = 'today' | 'week' | 'month';
@@ -350,9 +348,6 @@ export function DashboardPage() {
                         <p className="text-xs font-medium text-slate-800 dark:text-slate-200 truncate">{p.name}</p>
                         <p className={clsx('text-[10px] tabular-nums', isOut ? 'text-red-500 font-semibold' : 'text-amber-600')}>
                           {isOut ? 'OUT OF STOCK' : `${p.stockQty} left`}
-                          {!isOut && p.reorderLevel > 0 && (
-                            <span className="text-slate-400"> · min {p.reorderLevel}</span>
-                          )}
                         </p>
                       </div>
                       <a

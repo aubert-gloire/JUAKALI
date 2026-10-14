@@ -101,7 +101,7 @@ inventoryRouter.get(
     const filter: Record<string, unknown> = { ...shopFilter(req), isActive: true };
 
     if (category) filter.categoryId = new mongoose.Types.ObjectId(category);
-    if (lowStock === 'true') filter.$expr = { $lte: ['$stockQty', '$reorderLevel'] };
+    if (lowStock === 'true') filter.stockQty = { $lte: 3 };
 
     let query = Product.find(filter);
     if (search) query = Product.find({ ...filter, $text: { $search: search } });
@@ -130,7 +130,7 @@ inventoryRouter.get(
     const filter = { ...shopFilter(req), isActive: true };
     const [total, lowStock, valueAgg] = await Promise.all([
       Product.countDocuments(filter),
-      Product.countDocuments({ ...filter, $expr: { $lte: ['$stockQty', '$reorderLevel'] } }),
+      Product.countDocuments({ ...filter, stockQty: { $lte: 3 } }),
       Product.aggregate([
         { $match: { shopId: req.tenant!.shopId, isActive: true } },
         { $group: { _id: null, totalValue: { $sum: { $multiply: ['$stockQty', '$costPrice'] } } } },

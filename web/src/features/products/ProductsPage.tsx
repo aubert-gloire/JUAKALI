@@ -6,16 +6,15 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { toast } from 'sonner';
 import {
-  Plus, Search, Upload, Edit2, Package, Sliders, X, ChevronDown, PowerOff, TrendingUp, Printer, Download, FileText,
+  Plus, Search, Upload, Edit2, Package, Sliders, X, PowerOff, TrendingUp, Printer, Download, FileText,
   ShoppingCart, RefreshCw,
 } from 'lucide-react';
-import { categoriesApi, productsApi, purchasesApi, suppliersApi, type TopSeller, type Supplier, Category, Product } from '@/lib/inventoryApi';
+import { productsApi, purchasesApi, suppliersApi, type TopSeller, type Supplier, Product } from '@/lib/inventoryApi';
 import { exportCSV, printTable, exportPDF } from '@/lib/exportUtils';
 
 const PRODUCT_COLS = [
   { label: 'Name',           value: (p: Product) => p.name },
   { label: 'SKU',            value: (p: Product) => p.sku },
-  { label: 'Category',       value: (p: Product) => typeof p.categoryId === 'object' && p.categoryId ? p.categoryId.name : '' },
   { label: 'Stock',          value: (p: Product) => p.stockQty },
   { label: 'Unit',           value: (p: Product) => p.unit },
   { label: 'Cost (RWF)',     value: (p: Product) => p.costPrice },
@@ -29,7 +28,6 @@ const ProductSchema = z.object({
   name:          z.string().min(1, 'Name is required'),
   sku:           z.string().optional(),
   barcode:       z.string().optional(),
-  categoryId:    z.string().optional(),
   unit:          z.string().default('pcs'),
   costPrice:     z.coerce.number().int().min(0, 'Must be ≥ 0'),
   sellingPrice:  z.coerce.number().int().min(0, 'Must be ≥ 0'),
@@ -39,20 +37,11 @@ type ProductFormData = z.infer<typeof ProductSchema>;
 
 // ── Hooks ─────────────────────────────────────────────────────────────────────
 
-function useCategories() {
+function useProducts(search: string, page: number) {
   return useQuery({
-    queryKey: ['inventory', 'categories'],
-    queryFn: () => categoriesApi.list(),
-    staleTime: 60_000,
-  });
-}
-
-function useProducts(search: string, categoryFilter: string, page: number) {
-  return useQuery({
-    queryKey: ['inventory', 'products', search, categoryFilter, page],
+    queryKey: ['inventory', 'products', search, page],
     queryFn: () => productsApi.list({
       search: search || undefined,
-      category: categoryFilter || undefined,
       page,
       limit: 50,
     }),
@@ -63,9 +52,9 @@ function useProducts(search: string, categoryFilter: string, page: number) {
 
 // ── Badge ─────────────────────────────────────────────────────────────────────
 
-function StockBadge({ qty, reorder }: { qty: number; reorder: number }) {
+function StockBadge({ qty }: { qty: number }) {
   if (qty === 0) return <span className="badge bg-red-100 text-red-700">{qty}</span>;
-  if (qty <= reorder) return <span className="badge bg-amber-100 text-amber-700">{qty}</span>;
+  if (qty <= 3) return <span className="badge bg-amber-100 text-amber-700">{qty}</span>;
   return <span className="badge bg-green-100 text-green-700">{qty}</span>;
 }
 
@@ -75,12 +64,10 @@ function ProductModal({
   open,
   onClose,
   editing,
-  categories,
 }: {
   open: boolean;
   onClose: () => void;
   editing: Product | null;
-  categories: Category[];
 }) {
   const qc = useQueryClient();
   const {
@@ -90,7 +77,7 @@ function ProductModal({
     formState: { errors, isSubmitting },
   } = useForm<ProductFormData>({
     resolver: zodResolver(ProductSchema),
-    defaultValues: { unit: 'pcs', costPrice: 0, sellingPrice: 0, name: '', sku: '', barcode: '', categoryId: '', description: '' },
+    defaultValues: { unit: 'pcs', costPrice: 0, sellingPrice: 0, name: '', sku: '', barcode: '', description: '' },
   });
 
   useEffect(() => {
@@ -99,14 +86,13 @@ function ProductModal({
         name:         editing.name,
         sku:          editing.sku ?? '',
         barcode:      editing.barcode ?? '',
-        categoryId:   (editing.categoryId as Category | null)?._id ?? '',
         unit:         editing.unit,
         costPrice:    editing.costPrice,
         sellingPrice: editing.sellingPrice,
         description:  editing.description ?? '',
       });
     } else {
-      reset({ unit: 'pcs', costPrice: 0, sellingPrice: 0, name: '', sku: '', barcode: '', categoryId: '', description: '' });
+      reset({ unit: 'pcs', costPrice: 0, sellingPrice: 0, name: '', sku: '', barcode: '', description: '' });
     }
   }, [editing, open, reset]);
 
@@ -167,15 +153,6 @@ function ProductModal({
               {errors.sellingPrice && <p className="text-xs text-red-500 mt-0.5">{errors.sellingPrice.message}</p>}
             </div>
 
-            <div>
-              <label className="label">Category</label>
-              <select {...register('categoryId')} className="input mt-1">
-                <option value="">No category</option>
-                {categories.map((c) => (
-                  <option key={c._id} value={c._id}>{c.name}</option>
-                ))}
-              </select>
-            </div>
             <div>
               <label className="label">Unit</label>
               <select {...register('unit')} className="input mt-1">
@@ -414,19 +391,16 @@ function ProductGridCard({
   onEdit: (p: Product) => void;
   onDeactivate: (p: Product) => void;
 }) {
-  const cat = product.categoryId as Category | null;
-  const color = cat?.color ?? '#6B7280';
   const isOut = product.stockQty === 0;
 
   return (
     <div className="card p-3 flex flex-col gap-2">
-      <div className="h-1 rounded-full" style={{ backgroundColor: color }} />
       <div className="flex-1">
         <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 line-clamp-2 leading-tight">{product.name}</p>
         <p className="text-[10px] text-slate-400 font-mono mt-0.5">{product.sku}</p>
       </div>
       <div className="flex items-center justify-between">
-        <StockBadge qty={product.stockQty} reorder={product.reorderLevel} />
+        <StockBadge qty={product.stockQty} />
         <span className="text-sm font-bold text-primary-600 dark:text-primary-400 tabular-nums">
           {product.sellingPrice.toLocaleString()}
         </span>
@@ -521,7 +495,6 @@ function TopSellersPanel() {
 export function ProductsPage() {
   const navigate = useNavigate();
   const [search, setSearch] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState('');
   const [page, setPage] = useState(1);
   const [modalOpen, setModalOpen] = useState(false);
   const [csvOpen, setCsvOpen] = useState(false);
@@ -529,9 +502,7 @@ export function ProductsPage() {
   const [deactivateTarget, setDeactivateTarget] = useState<Product | null>(null);
   const [restockTarget, setRestockTarget] = useState<Product | null>(null);
 
-  const catsQ = useCategories();
-  const prodQ = useProducts(search, categoryFilter, page);
-  const categories = catsQ.data?.categories ?? [];
+  const prodQ = useProducts(search, page);
 
   const openEdit = (p: Product) => { setEditing(p); setModalOpen(true); };
   const openAdd  = () => { setEditing(null); setModalOpen(true); };
@@ -572,28 +543,14 @@ export function ProductsPage() {
             onChange={(e) => { setSearch(e.target.value); setPage(1); }}
           />
         </div>
-
-        <div className="relative">
-          <select
-            className="input pr-8 appearance-none"
-            value={categoryFilter}
-            onChange={(e) => { setCategoryFilter(e.target.value); setPage(1); }}
+        {search && (
+          <button
+            className="btn-secondary gap-1.5"
+            onClick={() => { setSearch(''); setPage(1); }}
           >
-            <option value="">All categories</option>
-            {categories.map((c) => (
-              <option key={c._id} value={c._id}>{c.name}</option>
-            ))}
-          </select>
-          <ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-        </div>
-
-        <button
-          className={clsx('btn-secondary gap-1.5', categoryFilter && 'border-primary-300 bg-primary-50 text-primary-700')}
-          onClick={() => { setCategoryFilter(''); setSearch(''); setPage(1); }}
-        >
-          <Sliders size={14} />
-          {categoryFilter || search ? 'Clear' : 'Filter'}
-        </button>
+            <Sliders size={14} /> Clear
+          </button>
+        )}
       </div>
 
       {/* Products grid */}
@@ -652,7 +609,6 @@ export function ProductsPage() {
         open={modalOpen}
         onClose={() => { setModalOpen(false); setEditing(null); }}
         editing={editing}
-        categories={categories}
       />
       <CsvModal open={csvOpen} onClose={() => setCsvOpen(false)} />
 

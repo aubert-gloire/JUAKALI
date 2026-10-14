@@ -141,9 +141,6 @@ export function AlertsPage() {
                     <th className="text-center px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
                       In Stock
                     </th>
-                    <th className="text-center px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-slate-400 hidden md:table-cell">
-                      Reorder Level
-                    </th>
                     <th className="text-left px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
                       Status
                     </th>
@@ -153,9 +150,7 @@ export function AlertsPage() {
                 <tbody>
                   {lowStockItems.map((product) => {
                     const outOfStock = product.stockQty <= 0;
-                    const critical =
-                      product.stockQty > 0 &&
-                      product.stockQty <= Math.max(1, Math.ceil(product.reorderLevel * 0.5));
+                    const critical = product.stockQty > 0 && product.stockQty === 1;
                     return (
                       <tr
                         key={product._id}
@@ -175,9 +170,6 @@ export function AlertsPage() {
                             {product.stockQty}
                           </span>
                           <span className="text-xs text-slate-400 ml-1">{product.unit}</span>
-                        </td>
-                        <td className="px-4 py-3 text-center text-slate-500 hidden md:table-cell">
-                          {product.reorderLevel}
                         </td>
                         <td className="px-4 py-3">
                           {outOfStock ? (
