@@ -484,11 +484,27 @@ inventoryRouter.post(
     const seq = await nextSeq(req.tenant!.shopId, 'purchase');
     const orderNumber = `PO-${String(seq).padStart(5, '0')}`;
 
+    // Auto-create supplier when a name is typed but no existing ID is given
+    let resolvedSupplierId = body.supplierId
+      ? new mongoose.Types.ObjectId(body.supplierId)
+      : undefined;
+    let resolvedSupplierName = body.supplierName;
+
+    if (!resolvedSupplierId && body.supplierName?.trim()) {
+      const supplier = await Supplier.findOneAndUpdate(
+        { ...shopFilter(req), name: { $regex: new RegExp(`^${body.supplierName.trim()}$`, 'i') } },
+        { $setOnInsert: { ...shopFilter(req), name: body.supplierName.trim() } },
+        { upsert: true, new: true },
+      );
+      resolvedSupplierId = supplier._id;
+      resolvedSupplierName = supplier.name;
+    }
+
     const order = await PurchaseOrder.create({
       ...shopFilter(req),
       orderNumber,
-      supplierId: body.supplierId ? new mongoose.Types.ObjectId(body.supplierId) : undefined,
-      supplierName: body.supplierName,
+      supplierId: resolvedSupplierId,
+      supplierName: resolvedSupplierName,
       lines,
       totalCost,
       notes: body.notes,
