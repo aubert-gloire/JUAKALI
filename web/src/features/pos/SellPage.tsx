@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -876,8 +876,8 @@ export function SellPage() {
   const [receiptSale, setReceiptSale] = useState<Sale | null>(null);
   const [receiptUrl, setReceiptUrl] = useState<string | undefined>();
   const [showQuickAdd, setShowQuickAdd] = useState(false);
+  const [quickAddName, setQuickAddName] = useState('');
   const [quickAddPhone, setQuickAddPhone] = useState('');
-  const quickAddNameRef = useRef('');
 
   // Data
   const shopQ = useQuery({
@@ -910,6 +910,7 @@ export function SellPage() {
       setSelectedCustomer(null);
       setCustomerSearch('');
       setShowQuickAdd(false);
+      setQuickAddName('');
       setQuickAddPhone('');
       setShowPayment(false);
       setShowMobileCart(false);
@@ -926,6 +927,7 @@ export function SellPage() {
       setSelectedCustomer(data.customer);
       setCustomerSearch('');
       setShowQuickAdd(false);
+      setQuickAddName('');
       setQuickAddPhone('');
       qc.invalidateQueries({ queryKey: ['sales', 'customers'] });
     },
@@ -996,7 +998,7 @@ export function SellPage() {
     setCart((prev) => prev.filter((l) => l.product._id !== productId));
 
   const handleConfirmPayment = (tendered?: number, creditDueDate?: string, creditUpfront?: number, installments?: InstallmentLine[]) => {
-    const custName = selectedCustomer?.name ?? (customerSearch.trim() || undefined);
+    const custName = selectedCustomer?.name;
     const custPhone = selectedCustomer?.phone;
     completeSale.mutate({
       items: cart.map((l) => ({ productId: l.product._id, qty: l.qty })),
@@ -1087,7 +1089,7 @@ export function SellPage() {
       </div>
 
       {/* Customer */}
-      <div className="px-3 py-2 border-t border-slate-100 dark:border-slate-700">
+      <div className="px-3 py-2 border-t border-slate-100 dark:border-slate-700 space-y-2">
         {selectedCustomer ? (
           <div className="flex items-center justify-between bg-blue-50 dark:bg-blue-900/20 rounded-lg px-3 py-1.5">
             <div className="min-w-0">
@@ -1104,78 +1106,34 @@ export function SellPage() {
               )}
             </div>
             <button
-              onClick={() => { setSelectedCustomer(null); setCustomerSearch(''); setShowQuickAdd(false); }}
+              onClick={() => { setSelectedCustomer(null); setCustomerSearch(''); }}
               className="text-blue-400 hover:text-blue-600 flex-shrink-0 ml-2"
             >
               <X size={14} />
             </button>
           </div>
-        ) : showQuickAdd ? (
-          /* ── Inline quick-add form ─────────────────────────────── */
-          <div className="space-y-1.5">
-            <div className="flex items-center gap-1.5 mb-0.5">
-              <UserPlus size={12} className="text-primary-600 flex-shrink-0" />
-              <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">New customer</span>
-            </div>
-            <input
-              className="input text-xs py-1.5"
-              placeholder="Name"
-              defaultValue={quickAddNameRef.current}
-              onChange={(e) => { quickAddNameRef.current = e.target.value; }}
-            />
-            <div className="relative">
-              <Phone size={11} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input
-                className="input text-xs py-1.5 pl-7"
-                placeholder="Phone"
-                value={quickAddPhone}
-                onChange={(e) => setQuickAddPhone(e.target.value)}
-                autoFocus
-              />
-            </div>
-            <div className="flex gap-1.5 pt-0.5">
-              <button
-                onClick={() => { setShowQuickAdd(false); setQuickAddPhone(''); }}
-                className="flex-1 py-1.5 text-xs rounded-lg border border-slate-200 dark:border-slate-600 text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => {
-                  const name = quickAddNameRef.current.trim();
-                  if (!name) return;
-                  createCustomer.mutate({ name, phone: quickAddPhone.trim() || undefined });
-                }}
-                disabled={createCustomer.isPending}
-                className="flex-1 py-1.5 text-xs rounded-lg bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-50 font-medium"
-              >
-                {createCustomer.isPending ? 'Saving…' : 'Add Customer'}
-              </button>
-            </div>
-          </div>
         ) : (
-          /* ── Customer search ───────────────────────────────────── */
-          <div className="relative">
-            <Search size={11} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-            <input
-              className="input text-xs py-1.5 pl-7 pr-7"
-              placeholder="Customer name or phone (optional)…"
-              value={customerSearch}
-              onChange={(e) => { setCustomerSearch(e.target.value); setShowQuickAdd(false); }}
-            />
-            {customerSearch && (
-              <button
-                onClick={() => setCustomerSearch('')}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-              >
-                <X size={12} />
-              </button>
-            )}
-            {/* Dropdown */}
-            {customerSearch.length >= 1 && (
-              <div className="absolute z-10 bottom-full mb-1 left-0 right-0 bg-white dark:bg-slate-800 rounded-lg shadow-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
-                {customersQ.data && customersQ.data.customers.length > 0 ? (
-                  <>
+          <>
+            {/* Search existing customer */}
+            <div className="relative">
+              <Search size={11} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+              <input
+                className="input text-xs py-1.5 pl-7 pr-7"
+                placeholder="Find existing customer…"
+                value={customerSearch}
+                onChange={(e) => setCustomerSearch(e.target.value)}
+              />
+              {customerSearch && (
+                <button
+                  onClick={() => setCustomerSearch('')}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                >
+                  <X size={12} />
+                </button>
+              )}
+              {customerSearch.length >= 1 && (
+                <div className="absolute z-10 bottom-full mb-1 left-0 right-0 bg-white dark:bg-slate-800 rounded-lg shadow-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+                  {customersQ.data && customersQ.data.customers.length > 0 ? (
                     <div className="max-h-28 overflow-y-auto">
                       {customersQ.data.customers.map((c) => (
                         <button
@@ -1188,24 +1146,65 @@ export function SellPage() {
                         </button>
                       ))}
                     </div>
-                    <button
-                      onClick={() => { quickAddNameRef.current = customerSearch; setShowQuickAdd(true); setCustomerSearch(''); }}
-                      className="w-full text-left px-3 py-2 text-xs text-primary-600 dark:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-900/20 flex items-center gap-1.5 font-medium border-t border-slate-100 dark:border-slate-700"
-                    >
-                      <UserPlus size={11} /> Add "{customerSearch}" as new customer
-                    </button>
-                  </>
-                ) : (
+                  ) : (
+                    <p className="px-3 py-2 text-xs text-slate-400">No customers found</p>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* New customer section */}
+            {showQuickAdd ? (
+              <div className="space-y-1.5 rounded-lg bg-slate-50 dark:bg-slate-900/50 p-2.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <UserPlus size={11} className="text-primary-600 flex-shrink-0" />
+                    <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">New customer</span>
+                  </div>
                   <button
-                    onClick={() => { quickAddNameRef.current = customerSearch; setShowQuickAdd(true); setCustomerSearch(''); }}
-                    className="w-full text-left px-3 py-2 text-xs text-primary-600 dark:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-900/20 flex items-center gap-1.5 font-medium"
+                    onClick={() => { setShowQuickAdd(false); setQuickAddName(''); setQuickAddPhone(''); }}
+                    className="text-slate-400 hover:text-slate-600"
                   >
-                    <UserPlus size={11} /> Add "{customerSearch}" as new customer
+                    <X size={13} />
                   </button>
-                )}
+                </div>
+                <input
+                  className="input text-xs py-1.5"
+                  placeholder="Name *"
+                  value={quickAddName}
+                  onChange={(e) => setQuickAddName(e.target.value)}
+                  autoFocus
+                />
+                <div className="relative">
+                  <Phone size={11} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    className="input text-xs py-1.5 pl-7"
+                    placeholder="Phone (optional)"
+                    value={quickAddPhone}
+                    onChange={(e) => setQuickAddPhone(e.target.value)}
+                  />
+                </div>
+                <button
+                  onClick={() => {
+                    const name = quickAddName.trim();
+                    if (!name) return;
+                    createCustomer.mutate({ name, phone: quickAddPhone.trim() || undefined });
+                  }}
+                  disabled={createCustomer.isPending || !quickAddName.trim()}
+                  className="w-full py-1.5 text-xs rounded-lg bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-50 font-medium"
+                >
+                  {createCustomer.isPending ? 'Saving…' : 'Add Customer'}
+                </button>
               </div>
+            ) : (
+              <button
+                onClick={() => setShowQuickAdd(true)}
+                className="flex items-center gap-1.5 text-xs text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 font-medium py-0.5"
+              >
+                <UserPlus size={11} /> Add new customer
+              </button>
             )}
-          </div>
+          </>
         )}
       </div>
 
