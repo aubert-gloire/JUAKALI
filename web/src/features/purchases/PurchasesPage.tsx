@@ -7,9 +7,9 @@ import { toast } from 'sonner';
 import {
   Plus, ShoppingBag, X, Trash2, CheckCircle, ChevronDown,
   XCircle, Search, Printer, Download, FileText, Package,
-  ChevronLeft, ChevronRight, MoreHorizontal, AlertTriangle, RefreshCw,
+  ChevronLeft, ChevronRight, MoreHorizontal, AlertTriangle, RefreshCw, Phone, Mail,
 } from 'lucide-react';
-import { purchasesApi, suppliersApi, productsApi, type PurchaseOrder, type Product } from '@/lib/inventoryApi';
+import { purchasesApi, suppliersApi, productsApi, type PurchaseOrder, type Product, type Supplier } from '@/lib/inventoryApi';
 import { exportCSV, printTable, exportPDF } from '@/lib/exportUtils';
 import { RestockModal } from '@/components/RestockModal';
 import { clsx } from 'clsx';
@@ -288,6 +288,7 @@ function CreatePOModal({ open, onClose }: { open: boolean; onClose: () => void }
 
 function OrderCard({
   order,
+  supplier,
   onReceive,
   onCancel,
   onDelete,
@@ -295,6 +296,7 @@ function OrderCard({
   cancelling,
 }: {
   order: PurchaseOrder;
+  supplier?: Supplier;
   onReceive: () => void;
   onCancel: () => void;
   onDelete: () => void;
@@ -319,6 +321,30 @@ function OrderCard({
             <p className="mt-1 font-semibold text-slate-800 dark:text-slate-100 truncate">
               {order.supplierName ?? <span className="text-slate-400 font-normal italic">No supplier</span>}
             </p>
+            {supplier && (supplier.phone || supplier.email) && (
+              <div className="flex flex-wrap gap-2 mt-0.5">
+                {supplier.phone && (
+                  <a
+                    href={`https://wa.me/${supplier.phone.replace(/\D/g, '')}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    className="flex items-center gap-1 text-[10px] text-emerald-600 hover:text-emerald-700 font-medium"
+                  >
+                    <Phone size={9} /> {supplier.phone}
+                  </a>
+                )}
+                {supplier.email && (
+                  <a
+                    href={`mailto:${supplier.email}`}
+                    onClick={(e) => e.stopPropagation()}
+                    className="flex items-center gap-1 text-[10px] text-blue-600 hover:text-blue-700"
+                  >
+                    <Mail size={9} /> {supplier.email}
+                  </a>
+                )}
+              </div>
+            )}
             <p className="text-xs text-slate-400 mt-0.5">
               {new Date(order.createdAt).toLocaleDateString('en-RW', { day: 'numeric', month: 'short', year: 'numeric' })}
               {' · '}
@@ -432,6 +458,13 @@ export function PurchasesPage() {
     staleTime: 30_000,
   });
   const lowStockItems = lowStockQ.data?.products ?? [];
+
+  const suppliersQ = useQuery({
+    queryKey: ['inventory', 'suppliers'],
+    queryFn: () => suppliersApi.list(),
+    staleTime: 60_000,
+  });
+  const supplierMap = new Map((suppliersQ.data?.suppliers ?? []).map((s) => [s._id, s]));
 
   const receive = useMutation({
     mutationFn: (id: string) => purchasesApi.receive(id),
@@ -623,6 +656,7 @@ export function PurchasesPage() {
             <OrderCard
               key={o._id}
               order={o}
+              supplier={o.supplierId ? supplierMap.get(o.supplierId) : undefined}
               onReceive={() => receive.mutate(o._id)}
               onCancel={() => cancel.mutate(o._id)}
               onDelete={() => setDeleteTarget(o)}
