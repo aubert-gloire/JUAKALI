@@ -35,11 +35,11 @@
   },
   "nav": {
     "sell": "Sell",
-    "products": "Products",
+    "products": "Stock",
     "dashboard": "Dashboard",
     "more": "More",
     "reports": "Reports",
-    "purchases": "Purchases",
+    "purchases": "Stock Orders",
     "suppliers": "Suppliers",
     "expenses": "Expenses",
     "customers": "Customers",
@@ -91,7 +91,7 @@
     "notes": "Notes"
   },
   "purchases": {
-    "title": "Purchases",
+    "title": "Stock Orders",
     "newPO": "New Purchase Order",
     "orderNumber": "PO #",
     "supplier": "Supplier",

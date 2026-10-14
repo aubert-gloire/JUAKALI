@@ -34,6 +34,7 @@ export interface Sale {
   customerId?: string;
   customerName?: string;
   customerPhone?: string;
+  receiptUrl?: string;
   status: SaleStatus;
   voidedAt?: string;
   voidReason?: string;
@@ -109,6 +110,7 @@ export type CompleteSaleBody = {
   amountTendered?: number;
   customerId?: string;
   customerName?: string;
+  customerPhone?: string;
   notes?: string;
   creditDueDate?: string;
   creditUpfrontAmount?: number;
@@ -120,6 +122,7 @@ export type SalesListParams = {
   paymentMethod?: string;
   from?: string;
   to?: string;
+  customerId?: string;
 };
 
 export type SaleEditBody = {

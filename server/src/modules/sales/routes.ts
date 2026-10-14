@@ -148,7 +148,7 @@ salesRouter.get(
 salesRouter.get(
   '/',
   asyncHandler(async (req, res) => {
-    const { page = '1', limit = '30', status, paymentMethod, from, to } = req.query as Record<string, string>;
+    const { page = '1', limit = '30', status, paymentMethod, from, to, customerId } = req.query as Record<string, string>;
     const pageNum = Math.max(1, parseInt(page));
     const limitNum = Math.min(100, parseInt(limit) || 30);
     const skip = (pageNum - 1) * limitNum;
@@ -156,6 +156,7 @@ salesRouter.get(
     const filter: Record<string, unknown> = { ...shopFilter(req) };
     if (status && status !== 'all') filter.status = status;
     if (paymentMethod && paymentMethod !== 'all') filter.paymentMethod = paymentMethod;
+    if (customerId) filter.customerId = new mongoose.Types.ObjectId(customerId);
     if (from || to) {
       const dateFilter: Record<string, Date> = {};
       if (from) dateFilter.$gte = new Date(from);
@@ -231,11 +232,35 @@ salesRouter.post(
     const seq = await nextSeq(req.tenant!.shopId, 'sale');
     const saleNumber = `S-${String(seq).padStart(6, '0')}`;
 
-    const customerForPhone = body.customerId
-      ? await Customer.findById(body.customerId).lean()
-      : null;
+    // Resolve customer: prefer explicit customerId, then upsert by phone if name+phone provided
+    let resolvedCustomerId: mongoose.Types.ObjectId | undefined;
+    let resolvedCustomerName: string | undefined = body.customerName;
+    let resolvedCustomerPhone: string | undefined = body.customerPhone;
+
+    if (body.customerId) {
+      const found = await Customer.findById(body.customerId).lean();
+      resolvedCustomerId = new mongoose.Types.ObjectId(body.customerId);
+      resolvedCustomerPhone = found?.phone ?? body.customerPhone;
+      resolvedCustomerName = found?.name ?? body.customerName;
+    } else if (body.customerName && body.customerPhone) {
+      // Auto-save: upsert by phone so repeat visits merge into one record
+      const upserted = await Customer.findOneAndUpdate(
+        { shopId: req.tenant!.shopId, phone: body.customerPhone },
+        { $setOnInsert: { name: body.customerName, shopId: req.tenant!.shopId, phone: body.customerPhone, isActive: true } },
+        { upsert: true, new: true },
+      );
+      resolvedCustomerId = upserted._id as mongoose.Types.ObjectId;
+      resolvedCustomerName = upserted.name;
+      resolvedCustomerPhone = upserted.phone;
+    }
+
+    // Pre-generate the sale ID so we can sign the receipt URL before inserting
+    const saleId = new mongoose.Types.ObjectId();
+    const receiptToken = signReceiptToken(saleId.toString());
+    const receiptUrl = `${config.APP_ORIGIN.replace(/\/$/, '')}/api/receipts/${saleId}?t=${receiptToken}`;
 
     const sale = await Sale.create({
+      _id: saleId,
       ...shopFilter(req),
       saleNumber,
       items: saleItems.map(({ _qtyBefore: _q, ...rest }) => rest),
@@ -247,9 +272,10 @@ salesRouter.post(
       paymentMethod: body.paymentMethod,
       amountTendered: body.amountTendered,
       change: body.amountTendered != null ? Math.max(0, body.amountTendered - total) : undefined,
-      customerId: body.customerId ? new mongoose.Types.ObjectId(body.customerId) : undefined,
-      customerName: body.customerName,
-      customerPhone: customerForPhone?.phone,
+      customerId: resolvedCustomerId,
+      customerName: resolvedCustomerName,
+      customerPhone: resolvedCustomerPhone,
+      receiptUrl,
       cashierId: req.user!.id,
       notes: body.notes,
     });
@@ -272,14 +298,12 @@ salesRouter.post(
     }
 
     // Update customer total spent
-    if (sale.customerId) {
-      await Customer.updateOne({ _id: sale.customerId }, { $inc: { totalSpent: total } });
+    if (resolvedCustomerId) {
+      await Customer.updateOne({ _id: resolvedCustomerId }, { $inc: { totalSpent: total } });
     }
 
     // Auto-create credit account for credit sales
     if (body.paymentMethod === 'credit') {
-      const customer = customerForPhone;
-
       const upfront = body.creditUpfrontAmount ?? 0;
       const creditBalance = total - upfront;
       const initialPayments = upfront > 0
@@ -290,9 +314,9 @@ salesRouter.post(
         shopId: req.tenant!.shopId,
         saleId: sale._id,
         saleNumber: sale.saleNumber,
-        customerId: sale.customerId,
-        customerName: sale.customerName ?? 'Walk-in Customer',
-        customerPhone: customer?.phone,
+        customerId: resolvedCustomerId,
+        customerName: resolvedCustomerName ?? 'Walk-in Customer',
+        customerPhone: resolvedCustomerPhone,
         totalAmount: total,
         amountPaid: upfront,
         balance: creditBalance,
@@ -303,9 +327,6 @@ salesRouter.post(
         createdBy: req.user!.id,
       });
     }
-
-    const receiptToken = signReceiptToken(sale._id.toString());
-    const receiptUrl = `${config.APP_ORIGIN.replace(/\/$/, '')}/api/receipts/${sale._id}?t=${receiptToken}`;
 
     res.status(201).json({ sale, receiptUrl });
   }),

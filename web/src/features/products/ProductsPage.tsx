@@ -1,4 +1,5 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -6,8 +7,9 @@ import { z } from 'zod';
 import { toast } from 'sonner';
 import {
   Plus, Search, Upload, Edit2, Package, Sliders, X, ChevronDown, PowerOff, TrendingUp, Printer, Download, FileText,
+  ShoppingCart, RefreshCw,
 } from 'lucide-react';
-import { categoriesApi, productsApi, type TopSeller, Category, Product } from '@/lib/inventoryApi';
+import { categoriesApi, productsApi, purchasesApi, suppliersApi, type TopSeller, type Supplier, Category, Product } from '@/lib/inventoryApi';
 import { exportCSV, printTable, exportPDF } from '@/lib/exportUtils';
 
 const PRODUCT_COLS = [
@@ -18,7 +20,6 @@ const PRODUCT_COLS = [
   { label: 'Unit',           value: (p: Product) => p.unit },
   { label: 'Cost (RWF)',     value: (p: Product) => p.costPrice },
   { label: 'Price (RWF)',    value: (p: Product) => p.sellingPrice },
-  { label: 'Reorder Level',  value: (p: Product) => p.reorderLevel },
 ];
 import { clsx } from 'clsx';
 
@@ -32,7 +33,6 @@ const ProductSchema = z.object({
   unit:          z.string().default('pcs'),
   costPrice:     z.coerce.number().int().min(0, 'Must be ≥ 0'),
   sellingPrice:  z.coerce.number().int().min(0, 'Must be ≥ 0'),
-  reorderLevel:  z.coerce.number().int().min(0).default(5),
   description:   z.string().optional(),
 });
 type ProductFormData = z.infer<typeof ProductSchema>;
@@ -63,18 +63,6 @@ function useProducts(search: string, categoryFilter: string, page: number) {
 
 // ── Badge ─────────────────────────────────────────────────────────────────────
 
-function CategoryBadge({ cat }: { cat?: Category | null }) {
-  if (!cat) return <span className="text-slate-400 text-xs">—</span>;
-  return (
-    <span
-      className="badge text-white text-[10px] px-1.5 py-0.5"
-      style={{ backgroundColor: cat.color ?? '#6B7280' }}
-    >
-      {cat.name}
-    </span>
-  );
-}
-
 function StockBadge({ qty, reorder }: { qty: number; reorder: number }) {
   if (qty === 0) return <span className="badge bg-red-100 text-red-700">{qty}</span>;
   if (qty <= reorder) return <span className="badge bg-amber-100 text-amber-700">{qty}</span>;
@@ -95,7 +83,6 @@ function ProductModal({
   categories: Category[];
 }) {
   const qc = useQueryClient();
-
   const {
     register,
     handleSubmit,
@@ -103,20 +90,25 @@ function ProductModal({
     formState: { errors, isSubmitting },
   } = useForm<ProductFormData>({
     resolver: zodResolver(ProductSchema),
-    defaultValues: editing
-      ? {
-          name:         editing.name,
-          sku:          editing.sku,
-          barcode:      editing.barcode ?? '',
-          categoryId:   (editing.categoryId as Category | null)?._id ?? '',
-          unit:         editing.unit,
-          costPrice:    editing.costPrice,
-          sellingPrice: editing.sellingPrice,
-          reorderLevel: editing.reorderLevel,
-          description:  editing.description ?? '',
-        }
-      : { unit: 'pcs', reorderLevel: 5, costPrice: 0, sellingPrice: 0 },
+    defaultValues: { unit: 'pcs', costPrice: 0, sellingPrice: 0, name: '', sku: '', barcode: '', categoryId: '', description: '' },
   });
+
+  useEffect(() => {
+    if (editing) {
+      reset({
+        name:         editing.name,
+        sku:          editing.sku ?? '',
+        barcode:      editing.barcode ?? '',
+        categoryId:   (editing.categoryId as Category | null)?._id ?? '',
+        unit:         editing.unit,
+        costPrice:    editing.costPrice,
+        sellingPrice: editing.sellingPrice,
+        description:  editing.description ?? '',
+      });
+    } else {
+      reset({ unit: 'pcs', costPrice: 0, sellingPrice: 0, name: '', sku: '', barcode: '', categoryId: '', description: '' });
+    }
+  }, [editing, open, reset]);
 
   const create = useMutation({
     mutationFn: (d: ProductFormData) => productsApi.create(d),
@@ -191,11 +183,6 @@ function ProductModal({
                   <option key={u} value={u}>{u}</option>
                 ))}
               </select>
-            </div>
-
-            <div>
-              <label className="label">Reorder Level</label>
-              <input type="number" {...register('reorderLevel')} className="input mt-1" min={0} step={1} />
             </div>
 
             <div className="col-span-2">
@@ -290,6 +277,192 @@ function CsvModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   );
 }
 
+// ── Restock Modal ─────────────────────────────────────────────────────────────
+
+function RestockModal({ product, onClose }: { product: Product; onClose: () => void }) {
+  const qc = useQueryClient();
+  const [qty, setQty] = useState('');
+  const [unitCost, setUnitCost] = useState(String(product.costPrice || ''));
+  const [sellingPrice, setSellingPrice] = useState(String(product.sellingPrice || ''));
+  const [supplierId, setSupplierId] = useState('');
+  const [notes, setNotes] = useState('');
+
+  const suppliersQ = useQuery({
+    queryKey: ['inventory', 'suppliers'],
+    queryFn: () => suppliersApi.list(),
+    staleTime: 60_000,
+  });
+  const suppliers: Supplier[] = suppliersQ.data?.suppliers ?? [];
+
+  const mutation = useMutation({
+    mutationFn: async () => {
+      const costNum = parseInt(unitCost) || 0;
+      const sellNum = parseInt(sellingPrice) || 0;
+      const { order } = await purchasesApi.create({
+        supplierId: supplierId || undefined,
+        lines: [{ productId: product._id, qty: parseInt(qty), unitCost: costNum }],
+        notes: notes || undefined,
+      });
+      await purchasesApi.receive(order._id);
+      if (costNum !== product.costPrice || sellNum !== product.sellingPrice) {
+        await productsApi.update(product._id, { costPrice: costNum, sellingPrice: sellNum });
+      }
+    },
+    onSuccess: () => {
+      toast.success(`${parseInt(qty)} ${product.unit} added to ${product.name}`);
+      qc.invalidateQueries({ queryKey: ['inventory', 'products'] });
+      qc.invalidateQueries({ queryKey: ['inventory', 'purchases'] });
+      qc.invalidateQueries({ queryKey: ['inventory', 'stats'] });
+      onClose();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const qtyNum = parseInt(qty) || 0;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+      <div className="relative bg-white dark:bg-slate-800 rounded-xl w-full max-w-sm shadow-2xl p-5">
+        <div className="flex items-center gap-3 mb-4">
+          <RefreshCw size={18} className="text-blue-600 flex-shrink-0" />
+          <div>
+            <p className="font-semibold text-slate-900 dark:text-slate-100">Receive Stock — {product.name}</p>
+            <p className="text-xs text-slate-400">Current: {product.stockQty} {product.unit}</p>
+          </div>
+        </div>
+        <div className="space-y-3">
+          <div>
+            <label className="label text-xs">Qty received *</label>
+            <input
+              type="number"
+              min={1}
+              className="input mt-1 text-sm"
+              placeholder="e.g. 20"
+              value={qty}
+              onChange={(e) => setQty(e.target.value)}
+            />
+            {qtyNum > 0 && (
+              <p className="text-xs text-green-600 mt-1">→ {product.stockQty + qtyNum} {product.unit}</p>
+            )}
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="label text-xs">Cost Price (RWF)</label>
+              <input
+                type="number"
+                min={0}
+                className="input mt-1 text-sm"
+                placeholder="0"
+                value={unitCost}
+                onChange={(e) => setUnitCost(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="label text-xs">Selling Price (RWF)</label>
+              <input
+                type="number"
+                min={0}
+                className="input mt-1 text-sm"
+                placeholder="0"
+                value={sellingPrice}
+                onChange={(e) => setSellingPrice(e.target.value)}
+              />
+            </div>
+          </div>
+          <div>
+            <label className="label text-xs">Supplier</label>
+            <select
+              className="input mt-1 text-sm"
+              value={supplierId}
+              onChange={(e) => setSupplierId(e.target.value)}
+            >
+              <option value="">Unknown / Walk-in</option>
+              {suppliers.map((s) => (
+                <option key={s._id} value={s._id}>{s.name}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="label text-xs">Notes</label>
+            <input className="input mt-1 text-sm" placeholder="Optional…" value={notes} onChange={(e) => setNotes(e.target.value)} />
+          </div>
+        </div>
+        <div className="flex gap-2 mt-4">
+          <button className="btn-ghost flex-1" onClick={onClose}>Cancel</button>
+          <button
+            className="btn-primary flex-1"
+            disabled={qtyNum <= 0 || mutation.isPending}
+            onClick={() => mutation.mutate()}
+          >
+            {mutation.isPending ? 'Saving…' : 'Confirm Receipt'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Product grid card ─────────────────────────────────────────────────────────
+
+function ProductGridCard({
+  product, onSell, onRestock, onEdit, onDeactivate,
+}: {
+  product: Product;
+  onSell: (p: Product) => void;
+  onRestock: (p: Product) => void;
+  onEdit: (p: Product) => void;
+  onDeactivate: (p: Product) => void;
+}) {
+  const cat = product.categoryId as Category | null;
+  const color = cat?.color ?? '#6B7280';
+  const isOut = product.stockQty === 0;
+
+  return (
+    <div className="card p-3 flex flex-col gap-2">
+      <div className="h-1 rounded-full" style={{ backgroundColor: color }} />
+      <div className="flex-1">
+        <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 line-clamp-2 leading-tight">{product.name}</p>
+        <p className="text-[10px] text-slate-400 font-mono mt-0.5">{product.sku}</p>
+      </div>
+      <div className="flex items-center justify-between">
+        <StockBadge qty={product.stockQty} reorder={product.reorderLevel} />
+        <span className="text-sm font-bold text-primary-600 dark:text-primary-400 tabular-nums">
+          {product.sellingPrice.toLocaleString()}
+        </span>
+      </div>
+      <div className="grid grid-cols-2 gap-1">
+        <button
+          onClick={() => onSell(product)}
+          disabled={isOut}
+          className="flex items-center justify-center gap-1 text-xs font-semibold py-1.5 rounded-lg bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+        >
+          <ShoppingCart size={11} /> Sell
+        </button>
+        <button
+          onClick={() => onRestock(product)}
+          className="flex items-center justify-center gap-1 text-xs font-medium py-1.5 rounded-lg bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors"
+        >
+          <RefreshCw size={11} /> Restock
+        </button>
+        <button
+          onClick={() => onEdit(product)}
+          className="flex items-center justify-center gap-1 text-xs font-medium py-1.5 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-primary-50 hover:text-primary-600 transition-colors"
+        >
+          <Edit2 size={11} /> Edit
+        </button>
+        <button
+          onClick={() => onDeactivate(product)}
+          className="flex items-center justify-center gap-1 text-xs font-medium py-1.5 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-400 hover:bg-red-50 hover:text-red-500 transition-colors"
+          title="Deactivate product"
+        >
+          <PowerOff size={11} /> Off
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ── Top Sellers panel ─────────────────────────────────────────────────────────
 
 function TopSellersPanel() {
@@ -346,6 +519,7 @@ function TopSellersPanel() {
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 export function ProductsPage() {
+  const navigate = useNavigate();
   const [search, setSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
   const [page, setPage] = useState(1);
@@ -353,6 +527,7 @@ export function ProductsPage() {
   const [csvOpen, setCsvOpen] = useState(false);
   const [editing, setEditing] = useState<Product | null>(null);
   const [deactivateTarget, setDeactivateTarget] = useState<Product | null>(null);
+  const [restockTarget, setRestockTarget] = useState<Product | null>(null);
 
   const catsQ = useCategories();
   const prodQ = useProducts(search, categoryFilter, page);
@@ -360,14 +535,13 @@ export function ProductsPage() {
 
   const openEdit = (p: Product) => { setEditing(p); setModalOpen(true); };
   const openAdd  = () => { setEditing(null); setModalOpen(true); };
-
-  const fmt = (n: number) => `${n.toLocaleString()}`;
+  const onSell   = (p: Product) => navigate('/sell', { state: { addProduct: p } });
 
   return (
     <div className="p-4 md:p-6 space-y-4 max-w-6xl">
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">Products</h1>
+        <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">Stock</h1>
 
         <div className="flex items-center gap-2 flex-wrap">
           {(prodQ.data?.products.length ?? 0) > 0 && (<>
@@ -422,8 +596,8 @@ export function ProductsPage() {
         </button>
       </div>
 
-      {/* Table */}
-      <div className="card p-0 overflow-hidden">
+      {/* Products grid */}
+      <div className="card p-4">
         {prodQ.isLoading ? (
           <div className="flex items-center justify-center h-40 text-slate-400">
             <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary-500 border-t-transparent" />
@@ -434,69 +608,23 @@ export function ProductsPage() {
             <p className="text-sm">No products yet. Add your first product or import a CSV.</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50">
-                  <th className="text-left px-4 py-2.5 font-medium text-slate-500 text-xs uppercase tracking-wider">SKU</th>
-                  <th className="text-left px-4 py-2.5 font-medium text-slate-500 text-xs uppercase tracking-wider">Name</th>
-                  <th className="text-left px-4 py-2.5 font-medium text-slate-500 text-xs uppercase tracking-wider hidden md:table-cell">Category</th>
-                  <th className="text-right px-4 py-2.5 font-medium text-slate-500 text-xs uppercase tracking-wider">Stock</th>
-                  <th className="text-right px-4 py-2.5 font-medium text-slate-500 text-xs uppercase tracking-wider hidden md:table-cell">Cost</th>
-                  <th className="text-right px-4 py-2.5 font-medium text-slate-500 text-xs uppercase tracking-wider">Price</th>
-                  <th className="px-4 py-2.5" />
-                </tr>
-              </thead>
-              <tbody>
-                {prodQ.data!.products.map((p) => (
-                  <tr
-                    key={p._id}
-                    className="border-b border-slate-50 dark:border-slate-700/50 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
-                  >
-                    <td className="px-4 py-3 font-mono text-xs text-slate-500">{p.sku}</td>
-                    <td className="px-4 py-3">
-                      <p className="font-medium text-slate-900 dark:text-slate-100">{p.name}</p>
-                      {p.description && <p className="text-xs text-slate-400 truncate max-w-[200px]">{p.description}</p>}
-                    </td>
-                    <td className="px-4 py-3 hidden md:table-cell">
-                      <CategoryBadge cat={p.categoryId as Category | null} />
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <StockBadge qty={p.stockQty} reorder={p.reorderLevel} />
-                    </td>
-                    <td className="px-4 py-3 text-right text-slate-500 hidden md:table-cell">
-                      {fmt(p.costPrice)}
-                    </td>
-                    <td className="px-4 py-3 text-right font-medium text-slate-900 dark:text-slate-100">
-                      {fmt(p.sellingPrice)}
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        <button
-                          onClick={() => openEdit(p)}
-                          className="p-1.5 rounded text-slate-400 hover:text-primary-600 hover:bg-primary-50 transition-colors"
-                        >
-                          <Edit2 size={14} />
-                        </button>
-                        <button
-                          onClick={() => setDeactivateTarget(p)}
-                          className="p-1.5 rounded text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-                          title="Deactivate product"
-                        >
-                          <PowerOff size={14} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+            {prodQ.data!.products.map((p) => (
+              <ProductGridCard
+                key={p._id}
+                product={p}
+                onSell={onSell}
+                onRestock={setRestockTarget}
+                onEdit={openEdit}
+                onDeactivate={setDeactivateTarget}
+              />
+            ))}
           </div>
         )}
 
         {/* Pagination */}
         {(prodQ.data?.pages ?? 0) > 1 && (
-          <div className="flex items-center justify-between px-4 py-3 border-t border-slate-100 dark:border-slate-700">
+          <div className="flex items-center justify-between pt-4 border-t border-slate-100 dark:border-slate-700 mt-4">
             <p className="text-xs text-slate-500">
               {prodQ.data!.total} products · Page {prodQ.data!.page} of {prodQ.data!.pages}
             </p>
@@ -533,6 +661,9 @@ export function ProductsPage() {
           product={deactivateTarget}
           onClose={() => setDeactivateTarget(null)}
         />
+      )}
+      {restockTarget && (
+        <RestockModal product={restockTarget} onClose={() => setRestockTarget(null)} />
       )}
     </div>
   );

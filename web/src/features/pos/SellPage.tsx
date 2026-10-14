@@ -1,13 +1,16 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
   Search, X, Plus, Minus, Trash2, ShoppingCart,
   Banknote, Smartphone, CreditCard, AlertCircle, CheckCircle2, Tag,
-  Printer, MessageCircle, CheckCircle, Download, Link,
+  Printer, MessageCircle, CheckCircle, Download, Link, Phone,
 } from 'lucide-react';
 import { productsApi, categoriesApi, type Product, type Category } from '@/lib/inventoryApi';
 import { salesApi, customersApi, type PaymentMethod, type Sale, type Customer, PAYMENT_LABELS } from '@/lib/salesApi';
+import { settingsApi, type ShopDetails } from '@/lib/settingsApi';
+import { creditsApi } from '@/lib/creditsApi';
 import { clsx } from 'clsx';
 
 // ── Cart types ────────────────────────────────────────────────────────────────
@@ -318,12 +321,12 @@ function PaymentModal({
 
 // ── Receipt PDF generator ─────────────────────────────────────────────────────
 
-async function generateReceiptPDF(sale: Sale) {
+async function generateReceiptPDF(sale: Sale, shop?: ShopDetails) {
   const { jsPDF } = await import('jspdf');
 
-  const SHOP_NAME    = 'JUAKALI STORE';
-  const SHOP_LOCATION = 'Kigali, Rwanda';
-  const SHOP_PHONE   = '+250 788 268 061';
+  const SHOP_NAME    = shop?.name ?? 'JUAKALI STORE';
+  const SHOP_LOCATION = shop?.location ?? 'Kigali, Rwanda';
+  const SHOP_PHONE   = shop?.phone ?? '';
 
   const W = 80;          // mm — 80mm thermal width
   const MARGIN = 6;
@@ -478,10 +481,10 @@ async function generateReceiptPDF(sale: Sale) {
 
 // ── Receipt modal ─────────────────────────────────────────────────────────────
 
-function ReceiptModal({ sale, receiptUrl, onClose }: { sale: Sale; receiptUrl?: string; onClose: () => void }) {
-  const shopName = 'JUAKALI STORE';
-  const shopLocation = 'Kigali, Rwanda';
-  const shopPhone = '+250 788 268 061';
+function ReceiptModal({ sale, receiptUrl, shop, onClose }: { sale: Sale; receiptUrl?: string; shop?: ShopDetails; onClose: () => void }) {
+  const shopName = shop?.name ?? 'JUAKALI STORE';
+  const shopLocation = shop?.location ?? 'Kigali, Rwanda';
+  const shopPhone = shop?.phone ?? '';
   const [downloading, setDownloading] = useState(false);
   const [copied, setCopied] = useState(false);
 
@@ -494,7 +497,7 @@ function ReceiptModal({ sale, receiptUrl, onClose }: { sale: Sale; receiptUrl?: 
 
   const handleDownload = async () => {
     setDownloading(true);
-    try { await generateReceiptPDF(sale); }
+    try { await generateReceiptPDF(sale, shop); }
     finally { setDownloading(false); }
   };
 
@@ -748,6 +751,7 @@ function ReceiptModal({ sale, receiptUrl, onClose }: { sale: Sale; receiptUrl?: 
 
 export function SellPage() {
   const qc = useQueryClient();
+  const location = useLocation();
 
   // Product search & filter state
   const [search, setSearch] = useState('');
@@ -759,12 +763,20 @@ export function SellPage() {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
   const [showPayment, setShowPayment] = useState(false);
   const [customerSearch, setCustomerSearch] = useState('');
+  const [manualCustomerPhone, setManualCustomerPhone] = useState('');
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [showMobileCart, setShowMobileCart] = useState(false);
   const [receiptSale, setReceiptSale] = useState<Sale | null>(null);
   const [receiptUrl, setReceiptUrl] = useState<string | undefined>();
 
   // Data
+  const shopQ = useQuery({
+    queryKey: ['settings', 'shop'],
+    queryFn: () => settingsApi.getShop(),
+    staleTime: 5 * 60_000,
+  });
+  const shop = shopQ.data?.shop;
+
   const catsQ = useQuery({
     queryKey: ['inventory', 'categories'],
     queryFn: () => categoriesApi.list(),
@@ -793,6 +805,7 @@ export function SellPage() {
       setDiscount(0);
       setSelectedCustomer(null);
       setCustomerSearch('');
+      setManualCustomerPhone('');
       setShowPayment(false);
       setShowMobileCart(false);
       qc.invalidateQueries({ queryKey: ['sales'] });
@@ -801,6 +814,23 @@ export function SellPage() {
     },
     onError: (e) => toast.error(e.message),
   });
+
+  // Credits query for selected customer debt display
+  const selectedCreditQ = useQuery({
+    queryKey: ['credits', 'list', 'active-for-customer', selectedCustomer?._id],
+    queryFn: () => creditsApi.list({ status: 'active' }),
+    enabled: !!selectedCustomer,
+    staleTime: 60_000,
+    select: (data) => data.accounts.filter((a) => a.customerId === selectedCustomer?._id),
+  });
+  const selectedCustomerDebt = selectedCreditQ.data?.reduce((s, a) => s + a.balance, 0) ?? 0;
+
+  // Auto-add product pre-selected from Products page
+  useEffect(() => {
+    const prod = (location.state as { addProduct?: Product } | null)?.addProduct;
+    if (prod) addToCart(prod);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Cart calculations
   const subtotal = useMemo(() => cart.reduce((s, l) => s + l.product.sellingPrice * l.qty, 0), [cart]);
@@ -849,13 +879,16 @@ export function SellPage() {
     setCart((prev) => prev.filter((l) => l.product._id !== productId));
 
   const handleConfirmPayment = (tendered?: number, creditDueDate?: string, creditUpfront?: number) => {
+    const custName = selectedCustomer?.name ?? (customerSearch.trim() || undefined);
+    const custPhone = selectedCustomer?.phone ?? (manualCustomerPhone.trim() || undefined);
     completeSale.mutate({
       items: cart.map((l) => ({ productId: l.product._id, qty: l.qty })),
       discountAmount: discountAmt,
       paymentMethod,
       amountTendered: tendered,
       customerId: selectedCustomer?._id,
-      customerName: selectedCustomer?.name,
+      customerName: custName,
+      customerPhone: custPhone,
       creditDueDate,
       creditUpfrontAmount: creditUpfront,
     });
@@ -947,34 +980,52 @@ export function SellPage() {
               {selectedCustomer.phone && (
                 <p className="text-[10px] text-blue-500 dark:text-blue-400">{selectedCustomer.phone}</p>
               )}
+              {selectedCustomerDebt > 0 && (
+                <p className="text-[10px] font-bold text-red-500 dark:text-red-400">
+                  RWF {selectedCustomerDebt.toLocaleString()} outstanding
+                </p>
+              )}
             </div>
             <button
-              onClick={() => { setSelectedCustomer(null); setCustomerSearch(''); }}
+              onClick={() => { setSelectedCustomer(null); setCustomerSearch(''); setManualCustomerPhone(''); }}
               className="text-blue-400 hover:text-blue-600 flex-shrink-0 ml-2"
             >
               <X size={14} />
             </button>
           </div>
         ) : (
-          <div className="relative">
-            <input
-              className="input text-xs py-1.5"
-              placeholder="Search customer (optional)…"
-              value={customerSearch}
-              onChange={(e) => setCustomerSearch(e.target.value)}
-            />
-            {customersQ.data && customersQ.data.customers.length > 0 && customerSearch && (
-              <div className="absolute z-10 bottom-full mb-1 left-0 right-0 bg-white dark:bg-slate-800 rounded-lg shadow-xl border border-slate-200 dark:border-slate-700 max-h-36 overflow-y-auto">
-                {customersQ.data.customers.map((c) => (
-                  <button
-                    key={c._id}
-                    onClick={() => { setSelectedCustomer(c); setCustomerSearch(''); }}
-                    className="w-full text-left px-3 py-2 text-xs hover:bg-slate-50 dark:hover:bg-slate-700 flex items-center gap-2"
-                  >
-                    <span className="font-medium text-slate-800 dark:text-slate-200">{c.name}</span>
-                    {c.phone && <span className="text-slate-400">{c.phone}</span>}
-                  </button>
-                ))}
+          <div className="space-y-1.5">
+            <div className="relative">
+              <input
+                className="input text-xs py-1.5"
+                placeholder="Search customer (optional)…"
+                value={customerSearch}
+                onChange={(e) => setCustomerSearch(e.target.value)}
+              />
+              {customersQ.data && customersQ.data.customers.length > 0 && customerSearch && (
+                <div className="absolute z-10 bottom-full mb-1 left-0 right-0 bg-white dark:bg-slate-800 rounded-lg shadow-xl border border-slate-200 dark:border-slate-700 max-h-36 overflow-y-auto">
+                  {customersQ.data.customers.map((c) => (
+                    <button
+                      key={c._id}
+                      onClick={() => { setSelectedCustomer(c); setCustomerSearch(''); setManualCustomerPhone(''); }}
+                      className="w-full text-left px-3 py-2 text-xs hover:bg-slate-50 dark:hover:bg-slate-700 flex items-center gap-2"
+                    >
+                      <span className="font-medium text-slate-800 dark:text-slate-200">{c.name}</span>
+                      {c.phone && <span className="text-slate-400">{c.phone}</span>}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            {customerSearch && (
+              <div className="relative">
+                <Phone size={11} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  className="input text-xs py-1.5 pl-7"
+                  placeholder="Phone (saves to customer list)…"
+                  value={manualCustomerPhone}
+                  onChange={(e) => setManualCustomerPhone(e.target.value)}
+                />
               </div>
             )}
           </div>
@@ -1174,6 +1225,7 @@ export function SellPage() {
         <ReceiptModal
           sale={receiptSale}
           receiptUrl={receiptUrl}
+          shop={shop}
           onClose={() => { setReceiptSale(null); setReceiptUrl(undefined); }}
         />
       )}

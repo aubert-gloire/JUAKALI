@@ -132,6 +132,48 @@ authRouter.get(
   }),
 );
 
+// PATCH /api/auth/profile
+authRouter.patch(
+  '/profile',
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const { preferredLanguage, profilePicture, name, phone } = req.body as {
+      preferredLanguage?: string;
+      profilePicture?: string;
+      name?: string;
+      phone?: string;
+    };
+
+    const update: Record<string, unknown> = {};
+    if (name !== undefined) update.name = String(name).trim().slice(0, 100);
+    if (phone !== undefined) update.phone = String(phone).trim().slice(0, 30) || undefined;
+    if (preferredLanguage !== undefined) {
+      if (!['en', 'fr', 'rw'].includes(preferredLanguage)) throw Errors.validation('Invalid language');
+      update.preferredLanguage = preferredLanguage;
+    }
+    if (profilePicture !== undefined) {
+      if (profilePicture && profilePicture.length > 600_000) throw Errors.validation('Image too large');
+      update.profilePicture = profilePicture || undefined;
+    }
+
+    const { User } = await import('../../models/User');
+    const user = await User.findByIdAndUpdate(req.user!.id, { $set: update }, { new: true });
+    if (!user) throw Errors.notFound('User');
+
+    res.json({
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        preferredLanguage: user.preferredLanguage,
+        profilePicture: user.profilePicture,
+        mustChangePassword: user.mustChangePassword,
+      },
+    });
+  }),
+);
+
 // GET /api/auth/me/entitlements
 authRouter.get(
   '/me/entitlements',

@@ -6,6 +6,7 @@ export interface AuthUser {
   name: string;
   email: string;
   preferredLanguage: 'en' | 'fr' | 'rw';
+  profilePicture?: string;
   mustChangePassword: boolean;
 }
 

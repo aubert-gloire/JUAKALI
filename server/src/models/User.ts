@@ -7,6 +7,7 @@ export interface IUser extends Document {
   phone?: string;
   passwordHash: string;
   preferredLanguage: 'en' | 'fr' | 'rw';
+  profilePicture?: string;
   isActive: boolean;
   lastLoginAt?: Date;
   mustChangePassword: boolean;
@@ -23,6 +24,7 @@ const UserSchema = new Schema<IUser>(
     phone: { type: String, trim: true },
     passwordHash: { type: String, required: true },
     preferredLanguage: { type: String, enum: ['en', 'fr', 'rw'], default: 'en' },
+    profilePicture: { type: String },
     isActive: { type: Boolean, default: true },
     lastLoginAt: { type: Date },
     mustChangePassword: { type: Boolean, default: false },

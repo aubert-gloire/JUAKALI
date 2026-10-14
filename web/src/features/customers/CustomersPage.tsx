@@ -1,11 +1,12 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { toast } from 'sonner';
-import { Users, Plus, Phone, Mail, Search, X, Pencil, Trash2, Printer, Download, FileText } from 'lucide-react';
-import { customersApi, type Customer, type CustomerBody } from '@/lib/salesApi';
+import { Users, Plus, Phone, Mail, Search, X, Pencil, Trash2, Printer, Download, FileText, FileBarChart2, AlertCircle } from 'lucide-react';
+import { customersApi, salesApi, type Customer, type CustomerBody, type Sale } from '@/lib/salesApi';
+import { creditsApi, type CreditAccount } from '@/lib/creditsApi';
 import { exportCSV, printTable, exportPDF } from '@/lib/exportUtils';
 
 const CUSTOMER_COLS = [
@@ -41,16 +42,20 @@ function CustomerModal({
   const {
     register,
     handleSubmit,
+    reset,
     formState: { errors, isSubmitting },
   } = useForm<FormData>({
     resolver: zodResolver(schema),
-    defaultValues: {
-      name: customer?.name ?? '',
-      phone: customer?.phone ?? '',
-      email: customer?.email ?? '',
-      notes: customer?.notes ?? '',
-    },
+    defaultValues: { name: '', phone: '', email: '', notes: '' },
   });
+
+  useEffect(() => {
+    if (customer) {
+      reset({ name: customer.name, phone: customer.phone ?? '', email: customer.email ?? '', notes: customer.notes ?? '' });
+    } else {
+      reset({ name: '', phone: '', email: '', notes: '' });
+    }
+  }, [customer, reset]);
 
   const mutation = useMutation({
     mutationFn: (data: CustomerBody) =>
@@ -167,18 +172,198 @@ function DeleteCustomerModal({ customer, onClose }: { customer: Customer; onClos
   );
 }
 
+// ── Statement modal ───────────────────────────────────────────────────────────
+
+function StatementModal({ customer, credits, onClose }: { customer: Customer; credits: CreditAccount[]; onClose: () => void }) {
+  const [tab, setTab] = useState<'credits' | 'purchases'>('credits');
+  const customerCredits = credits.filter((c) => c.customerId === customer._id);
+  const totalDebt = customerCredits.filter(c => c.status !== 'paid').reduce((s, c) => s + c.balance, 0);
+
+  const salesQ = useQuery({
+    queryKey: ['sales', 'list', 'by-customer', customer._id],
+    queryFn: () => salesApi.list({ customerId: customer._id, page: 1 }),
+    staleTime: 30_000,
+  });
+  const allPurchases: Sale[] = (salesQ.data?.sales ?? []).filter((s) => s.status === 'completed');
+
+  const printStatement = () => {
+    const w = window.open('', '_blank');
+    if (!w) return;
+    const rows = customerCredits.map((c) => `
+      <tr>
+        <td>${c.saleNumber}</td>
+        <td>${new Date(c.createdAt).toLocaleDateString('en-RW')}</td>
+        <td style="text-align:right">${c.totalAmount.toLocaleString()}</td>
+        <td style="text-align:right">${c.amountPaid.toLocaleString()}</td>
+        <td style="text-align:right;font-weight:bold;color:${c.balance > 0 ? '#dc2626' : '#16a34a'}">${c.balance.toLocaleString()}</td>
+        <td>${c.status}</td>
+      </tr>`).join('');
+    w.document.write(`<!doctype html><html><head><title>Statement — ${customer.name}</title><style>
+      body{font-family:sans-serif;font-size:12px;padding:20px}
+      h2{margin:0 0 4px}p{margin:0 0 12px;color:#555}
+      table{width:100%;border-collapse:collapse}
+      th,td{border:1px solid #ddd;padding:6px 8px;text-align:left}
+      th{background:#f5f5f5;font-weight:600}
+      .total{font-size:14px;font-weight:bold;text-align:right;padding-top:8px}
+    </style></head><body>
+      <h2>Customer Statement: ${customer.name}</h2>
+      <p>Phone: ${customer.phone ?? '—'} · Total spent: RWF ${customer.totalSpent.toLocaleString()}</p>
+      <table>
+        <thead><tr><th>Sale #</th><th>Date</th><th style="text-align:right">Amount</th><th style="text-align:right">Paid</th><th style="text-align:right">Balance</th><th>Status</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+      <p class="total">Outstanding: RWF ${totalDebt.toLocaleString()}</p>
+    </body></html>`);
+    w.document.close();
+    w.focus();
+    w.print();
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+      <div className="relative bg-white dark:bg-slate-800 rounded-xl w-full max-w-lg shadow-2xl">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-700">
+          <div>
+            <h2 className="font-semibold text-slate-900 dark:text-slate-100">Statement — {customer.name}</h2>
+            <p className="text-xs text-slate-400 mt-0.5">
+              Total spent: RWF {customer.totalSpent.toLocaleString()}
+              {customer.phone && ` · ${customer.phone}`}
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={printStatement}
+              className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+            >
+              <Printer size={12} /> Print
+            </button>
+            <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={18} /></button>
+          </div>
+        </div>
+
+        <div className="p-5">
+          {/* Summary row */}
+          <div className="grid grid-cols-2 gap-3 mb-4">
+            <div className="bg-slate-50 dark:bg-slate-900/50 rounded-lg px-4 py-3">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400 mb-1">Total Spent</p>
+              <p className="text-lg font-bold text-slate-900 dark:text-slate-100">RWF {customer.totalSpent.toLocaleString()}</p>
+            </div>
+            <div className={`rounded-lg px-4 py-3 ${totalDebt > 0 ? 'bg-red-50 dark:bg-red-900/20' : 'bg-green-50 dark:bg-green-900/20'}`}>
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400 mb-1">Outstanding Debt</p>
+              <p className={`text-lg font-bold ${totalDebt > 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}`}>
+                RWF {totalDebt.toLocaleString()}
+              </p>
+            </div>
+          </div>
+
+          {/* Tabs */}
+          <div className="flex rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden mb-3 w-fit">
+            <button
+              onClick={() => setTab('credits')}
+              className={`px-3 py-1.5 text-xs font-medium transition-colors ${tab === 'credits' ? 'bg-primary-600 text-white' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
+            >
+              Credit Accounts {customerCredits.length > 0 && `(${customerCredits.length})`}
+            </button>
+            <button
+              onClick={() => setTab('purchases')}
+              className={`px-3 py-1.5 text-xs font-medium transition-colors ${tab === 'purchases' ? 'bg-primary-600 text-white' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
+            >
+              All Purchases {allPurchases.length > 0 && `(${allPurchases.length})`}
+            </button>
+          </div>
+
+          {/* Credit account list */}
+          {tab === 'credits' && (customerCredits.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-8 text-slate-400 gap-2">
+              <AlertCircle size={28} className="opacity-30" />
+              <p className="text-sm">No credit sales for this customer</p>
+            </div>
+          ) : (
+            <div className="space-y-2 max-h-64 overflow-y-auto">
+              {customerCredits.map((c) => (
+                <div key={c._id} className="flex items-center justify-between bg-slate-50 dark:bg-slate-900/50 rounded-lg px-3 py-2.5">
+                  <div>
+                    <p className="text-xs font-semibold text-slate-800 dark:text-slate-200">{c.saleNumber}</p>
+                    <p className="text-[10px] text-slate-400">{new Date(c.createdAt).toLocaleDateString('en-RW')}
+                      {c.dueDate && ` · due ${new Date(c.dueDate).toLocaleDateString('en-RW')}`}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">RWF {c.totalAmount.toLocaleString()}</p>
+                    {c.balance > 0 ? (
+                      <p className="text-[10px] font-bold text-red-500">RWF {c.balance.toLocaleString()} owed</p>
+                    ) : (
+                      <p className="text-[10px] font-bold text-green-500">Paid</p>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ))}
+
+          {/* All purchases list */}
+          {tab === 'purchases' && (salesQ.isLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary-500 border-t-transparent" />
+            </div>
+          ) : allPurchases.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-8 text-slate-400 gap-2">
+              <AlertCircle size={28} className="opacity-30" />
+              <p className="text-sm">No purchases found</p>
+            </div>
+          ) : (
+            <div className="space-y-2 max-h-64 overflow-y-auto">
+              {allPurchases.map((s) => (
+                <div key={s._id} className="flex items-center justify-between bg-slate-50 dark:bg-slate-900/50 rounded-lg px-3 py-2.5">
+                  <div>
+                    <p className="text-xs font-semibold text-slate-800 dark:text-slate-200">{s.saleNumber}</p>
+                    <p className="text-[10px] text-slate-400">
+                      {new Date(s.createdAt).toLocaleDateString('en-RW')} · {s.items.length} item{s.items.length !== 1 ? 's' : ''}
+                      {s.paymentMethod === 'credit' && <span className="text-amber-500 font-medium"> · Credit</span>}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xs font-semibold text-primary-600 dark:text-primary-400">RWF {s.total.toLocaleString()}</p>
+                    <p className="text-[10px] text-slate-400">{s.paymentMethod === 'mobile_money' ? 'MoMo' : s.paymentMethod}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export function CustomersPage() {
   const [search, setSearch] = useState('');
   const [modal, setModal] = useState<'add' | Customer | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Customer | null>(null);
+  const [statementTarget, setStatementTarget] = useState<Customer | null>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ['sales', 'customers', search],
     queryFn: () => customersApi.list(search || undefined),
     staleTime: 15_000,
   });
+
+  const creditsQ = useQuery({
+    queryKey: ['credits', 'list', 'all-active'],
+    queryFn: () => creditsApi.list({ status: 'active' }),
+    staleTime: 30_000,
+  });
+  const activeCredits = creditsQ.data?.accounts ?? [];
+
+  const debtMap = new Map<string, number>();
+  for (const c of activeCredits) {
+    if (c.customerId) {
+      debtMap.set(c.customerId, (debtMap.get(c.customerId) ?? 0) + c.balance);
+    }
+  }
 
   const customers = data?.customers ?? [];
 
@@ -245,51 +430,68 @@ export function CustomersPage() {
               </tr>
             </thead>
             <tbody>
-              {customers.map((c) => (
-                <tr key={c._id} className="border-b border-slate-50 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/40">
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-2.5">
-                      <div className="h-7 w-7 rounded-full bg-primary-100 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400 flex items-center justify-center text-xs font-bold flex-shrink-0">
-                        {c.name[0].toUpperCase()}
+              {customers.map((c) => {
+                const debt = debtMap.get(c._id) ?? 0;
+                return (
+                  <tr key={c._id} className="border-b border-slate-50 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2.5">
+                        <div className="h-7 w-7 rounded-full bg-primary-100 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400 flex items-center justify-center text-xs font-bold flex-shrink-0">
+                          {c.name[0].toUpperCase()}
+                        </div>
+                        <div className="min-w-0">
+                          <span className="font-medium text-slate-800 dark:text-slate-200">{c.name}</span>
+                          {debt > 0 && (
+                            <span className="ml-2 inline-flex items-center text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400">
+                              RWF {debt.toLocaleString()} owed
+                            </span>
+                          )}
+                        </div>
                       </div>
-                      <span className="font-medium text-slate-800 dark:text-slate-200">{c.name}</span>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 hidden sm:table-cell">
-                    <div className="space-y-0.5">
-                      {c.phone && (
-                        <div className="flex items-center gap-1.5 text-xs text-slate-500">
-                          <Phone size={11} /> {c.phone}
-                        </div>
-                      )}
-                      {c.email && (
-                        <div className="flex items-center gap-1.5 text-xs text-slate-500">
-                          <Mail size={11} /> {c.email}
-                        </div>
-                      )}
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 text-right font-semibold text-slate-800 dark:text-slate-200">
-                    RWF {c.totalSpent.toLocaleString()}
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <div className="flex items-center justify-end gap-1">
-                      <button
-                        onClick={() => setModal(c)}
-                        className="p-1.5 rounded text-slate-400 hover:text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors"
-                      >
-                        <Pencil size={14} />
-                      </button>
-                      <button
-                        onClick={() => setDeleteTarget(c)}
-                        className="p-1.5 rounded text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                    </td>
+                    <td className="px-4 py-3 hidden sm:table-cell">
+                      <div className="space-y-0.5">
+                        {c.phone && (
+                          <div className="flex items-center gap-1.5 text-xs text-slate-500">
+                            <Phone size={11} /> {c.phone}
+                          </div>
+                        )}
+                        {c.email && (
+                          <div className="flex items-center gap-1.5 text-xs text-slate-500">
+                            <Mail size={11} /> {c.email}
+                          </div>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-right font-semibold text-slate-800 dark:text-slate-200">
+                      RWF {c.totalSpent.toLocaleString()}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <div className="flex items-center justify-end gap-1">
+                        <button
+                          onClick={() => setStatementTarget(c)}
+                          className="p-1.5 rounded text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
+                          title="View statement"
+                        >
+                          <FileBarChart2 size={14} />
+                        </button>
+                        <button
+                          onClick={() => setModal(c)}
+                          className="p-1.5 rounded text-slate-400 hover:text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors"
+                        >
+                          <Pencil size={14} />
+                        </button>
+                        <button
+                          onClick={() => setDeleteTarget(c)}
+                          className="p-1.5 rounded text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         )}
@@ -305,6 +507,13 @@ export function CustomersPage() {
         <DeleteCustomerModal
           customer={deleteTarget}
           onClose={() => setDeleteTarget(null)}
+        />
+      )}
+      {statementTarget && (
+        <StatementModal
+          customer={statementTarget}
+          credits={activeCredits}
+          onClose={() => setStatementTarget(null)}
         />
       )}
     </div>

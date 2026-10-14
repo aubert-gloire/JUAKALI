@@ -6,8 +6,9 @@ import { z } from 'zod';
 import { toast } from 'sonner';
 import {
   CreditCard, ChevronDown, ChevronUp, DollarSign,
-  X, Clock, CheckCircle2, AlertTriangle, Printer, Download, FileText, Pencil, Trash2,
+  X, Clock, CheckCircle2, AlertTriangle, Printer, Download, FileText, Pencil, Trash2, MessageCircle,
 } from 'lucide-react';
+import { settingsApi } from '@/lib/settingsApi';
 import {
   creditsApi,
   type CreditAccount,
@@ -208,7 +209,7 @@ function EditCreditModal({ account, onClose }: { account: CreditAccount; onClose
 
 // ── Account row ───────────────────────────────────────────────────────────────
 
-function AccountRow({ account, onEdit, onDelete }: { account: CreditAccount; onEdit: (a: CreditAccount) => void; onDelete: (a: CreditAccount) => void }) {
+function AccountRow({ account, onEdit, onDelete, shopName, shopPhone }: { account: CreditAccount; onEdit: (a: CreditAccount) => void; onDelete: (a: CreditAccount) => void; shopName: string; shopPhone: string }) {
   const [open, setOpen] = useState(false);
   const [showPay, setShowPay] = useState(false);
   const isOverdue = account.status === 'overdue';
@@ -272,9 +273,36 @@ function AccountRow({ account, onEdit, onDelete }: { account: CreditAccount; onE
           <StatusBadge status={account.status} />
         </td>
 
-        {/* Expand */}
-        <td className="px-3 py-3 text-slate-400">
-          {open ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+        {/* Quick actions + expand */}
+        <td className="px-2 py-3">
+          <div className="flex items-center gap-1 justify-end">
+            {account.status !== 'paid' && account.customerPhone && (
+              <button
+                title="Send WhatsApp reminder"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const contact = shopPhone ? ` | ${shopPhone}` : '';
+                  const msg = `Dear ${account.customerName}, you have an outstanding balance of RWF ${account.balance.toLocaleString()} for sale #${account.saleNumber}. Please make payment at your earliest convenience. Thank you! — ${shopName}${contact}`;
+                  window.open(`https://wa.me/${account.customerPhone!.replace(/\D/g, '')}?text=${encodeURIComponent(msg)}`, '_blank');
+                }}
+                className="p-1.5 rounded-lg bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 hover:bg-green-100 transition-colors"
+              >
+                <MessageCircle size={13} />
+              </button>
+            )}
+            {account.status !== 'paid' && (
+              <button
+                title="Record payment"
+                onClick={(e) => { e.stopPropagation(); setShowPay(true); }}
+                className="p-1.5 rounded-lg bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400 hover:bg-primary-100 transition-colors"
+              >
+                <DollarSign size={13} />
+              </button>
+            )}
+            <span className="text-slate-400 ml-0.5">
+              {open ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+            </span>
+          </div>
         </td>
       </tr>
 
@@ -408,6 +436,14 @@ export function CreditsPage() {
   const [deleteTarget, setDeleteTarget] = useState<CreditAccount | null>(null);
   const qc = useQueryClient();
 
+  const shopQ = useQuery({
+    queryKey: ['settings', 'shop'],
+    queryFn: () => settingsApi.getShop(),
+    staleTime: 5 * 60_000,
+  });
+  const shopName = shopQ.data?.shop?.name ?? 'JUAKALI STORE';
+  const shopPhone = shopQ.data?.shop?.phone ?? '';
+
   const deleteCredit = useMutation({
     mutationFn: (id: string) => creditsApi.delete(id),
     onSuccess: () => {
@@ -499,7 +535,7 @@ export function CreditsPage() {
               </thead>
               <tbody>
                 {accounts.map((a) => (
-                  <AccountRow key={a._id} account={a} onEdit={setEditTarget} onDelete={setDeleteTarget} />
+                  <AccountRow key={a._id} account={a} onEdit={setEditTarget} onDelete={setDeleteTarget} shopName={shopName} shopPhone={shopPhone} />
                 ))}
               </tbody>
             </table>

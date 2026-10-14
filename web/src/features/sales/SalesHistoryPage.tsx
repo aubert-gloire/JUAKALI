@@ -4,9 +4,12 @@ import { toast } from 'sonner';
 import {
   Receipt, ChevronDown, ChevronUp, AlertCircle,
   Banknote, Smartphone, CreditCard, Tag, Search, X, Phone, Pencil,
-  Printer, Download, FileText,
+  Printer, Download, FileText, MessageCircle, Link, TrendingUp,
+  CheckCircle2, Clock, DollarSign,
 } from 'lucide-react';
 import { salesApi, type Sale, type PaymentMethod, PAYMENT_LABELS } from '@/lib/salesApi';
+import { settingsApi } from '@/lib/settingsApi';
+import { creditsApi, type CreditAccount } from '@/lib/creditsApi';
 import { exportPDF } from '@/lib/exportUtils';
 
 const SALE_COLS = [
@@ -258,10 +261,116 @@ function VoidModal({ sale, onClose }: { sale: Sale; onClose: () => void }) {
   );
 }
 
+// ── Resend receipt helpers ────────────────────────────────────────────────────
+
+function reshareWhatsApp(sale: Sale, shopName: string, shopPhone: string) {
+  const d = '─────────────────────';
+  const dateStr = new Date(sale.createdAt).toLocaleString('en-RW', {
+    day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
+  });
+  const lines = [
+    `🧾 *${shopName}*`,
+    shopPhone ? `📞 ${shopPhone}` : '',
+    d,
+    `*Receipt #${sale.saleNumber}*`,
+    `📅 ${dateStr}`,
+    d,
+    ...sale.items.map(
+      (i) => `▪ ${i.productName}\n   ${i.qty} × RWF ${i.unitPrice.toLocaleString()} = *RWF ${i.totalPrice.toLocaleString()}*`
+    ),
+    d,
+    sale.discountAmount > 0 ? `Subtotal:   RWF ${sale.subtotal.toLocaleString()}` : '',
+    sale.discountAmount > 0 ? `Discount:  −RWF ${sale.discountAmount.toLocaleString()}` : '',
+    `💰 *TOTAL:  RWF ${sale.total.toLocaleString()}*`,
+    d,
+    `Payment:   ${PAYMENT_LABELS[sale.paymentMethod]}`,
+    sale.customerName ? `\n👤 ${sale.customerName}${sale.customerPhone ? `  |  ${sale.customerPhone}` : ''}` : '',
+    d,
+    `🙏 Thank you for your business!`,
+    sale.receiptUrl ? `\n🔗 View receipt: ${sale.receiptUrl}` : '',
+  ].filter(Boolean).join('\n');
+
+  const waTarget = sale.customerPhone
+    ? `https://wa.me/${sale.customerPhone.replace(/\D/g, '')}?text=${encodeURIComponent(lines)}`
+    : `https://wa.me/?text=${encodeURIComponent(lines)}`;
+  window.open(waTarget, '_blank');
+}
+
+// ── Quick pay modal (debtors tab) ─────────────────────────────────────────────
+
+function QuickPayModal({ account, onClose }: { account: CreditAccount; onClose: () => void }) {
+  const qc = useQueryClient();
+  const [amount, setAmount] = useState(String(account.balance));
+  const [notes, setNotes] = useState('');
+  const mutation = useMutation({
+    mutationFn: () =>
+      creditsApi.recordPayment(account._id, { amount: parseInt(amount), notes: notes || undefined }),
+    onSuccess: () => {
+      toast.success('Payment recorded');
+      qc.invalidateQueries({ queryKey: ['credits'] });
+      qc.invalidateQueries({ queryKey: ['sales'] });
+      onClose();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+      <div className="relative bg-white dark:bg-slate-800 rounded-t-2xl sm:rounded-xl w-full sm:max-w-sm shadow-2xl">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-700">
+          <div>
+            <p className="font-semibold text-slate-900 dark:text-slate-100">Record Payment</p>
+            <p className="text-xs text-slate-400 mt-0.5">{account.customerName} · Balance: RWF {account.balance.toLocaleString()}</p>
+          </div>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={18} /></button>
+        </div>
+        <div className="p-5 space-y-3">
+          <div>
+            <label className="label text-xs">Amount Paid (RWF) *</label>
+            <input
+              type="number"
+              min={1}
+              max={account.balance}
+              className="input mt-1"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="label text-xs">Notes</label>
+            <input className="input mt-1" placeholder="e.g. Paid via MoMo…" value={notes} onChange={(e) => setNotes(e.target.value)} />
+          </div>
+          <div className="flex justify-end gap-2 pt-1">
+            <button className="btn-ghost" onClick={onClose}>Cancel</button>
+            <button
+              className="btn-primary"
+              disabled={!parseInt(amount) || mutation.isPending}
+              onClick={() => mutation.mutate()}
+            >
+              {mutation.isPending ? 'Saving…' : 'Record Payment'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Sale row ──────────────────────────────────────────────────────────────────
 
-function SaleRow({ sale, onVoid, onEdit }: { sale: Sale; onVoid: (s: Sale) => void; onEdit: (s: Sale) => void }) {
+function SaleRow({
+  sale, onVoid, onEdit, shopName, shopPhone, creditAccount,
+}: {
+  sale: Sale;
+  onVoid: (s: Sale) => void;
+  onEdit: (s: Sale) => void;
+  shopName: string;
+  shopPhone: string;
+  creditAccount?: CreditAccount;
+}) {
   const [open, setOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [showQuickPay, setShowQuickPay] = useState(false);
 
   return (
     <>
@@ -296,6 +405,10 @@ function SaleRow({ sale, onVoid, onEdit }: { sale: Sale; onVoid: (s: Sale) => vo
       </tr>
 
       {/* Expanded detail */}
+      {showQuickPay && creditAccount && (
+        <QuickPayModal account={creditAccount} onClose={() => setShowQuickPay(false)} />
+      )}
+
       {open && (
         <tr className="bg-slate-50 dark:bg-slate-800/30">
           <td colSpan={8} className="px-4 pb-3 pt-1">
@@ -329,7 +442,37 @@ function SaleRow({ sale, onVoid, onEdit }: { sale: Sale; onVoid: (s: Sale) => vo
                   </a>
                 )}
                 {sale.status === 'completed' && (
-                  <div className="ml-auto flex items-center gap-2">
+                  <div className="ml-auto flex items-center gap-2 flex-wrap">
+                    {creditAccount && creditAccount.status !== 'paid' && (
+                      <button
+                        className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400 hover:bg-primary-100 dark:hover:bg-primary-900/30 font-medium transition-colors"
+                        onClick={(e) => { e.stopPropagation(); setShowQuickPay(true); }}
+                      >
+                        <DollarSign size={11} /> Collect
+                      </button>
+                    )}
+                    <button
+                      className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/30 font-medium transition-colors"
+                      onClick={(e) => { e.stopPropagation(); reshareWhatsApp(sale, shopName, shopPhone); }}
+                      title="Resend via WhatsApp"
+                    >
+                      <MessageCircle size={11} /> WhatsApp
+                    </button>
+                    {sale.receiptUrl && (
+                      <button
+                        className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400 hover:bg-purple-100 dark:hover:bg-purple-900/30 font-medium transition-colors"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigator.clipboard.writeText(sale.receiptUrl!).then(() => {
+                            setCopied(true);
+                            setTimeout(() => setCopied(false), 2000);
+                          });
+                        }}
+                        title="Copy receipt link"
+                      >
+                        <Link size={11} /> {copied ? 'Copied!' : 'Copy Link'}
+                      </button>
+                    )}
                     <button
                       className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-primary-50 hover:text-primary-600 dark:hover:bg-primary-900/20 dark:hover:text-primary-400 font-medium transition-colors"
                       onClick={(e) => { e.stopPropagation(); onEdit(sale); }}
@@ -381,6 +524,7 @@ export function SalesHistoryPage() {
   const [range, setRange] = useState('today');
   const [paymentMethod, setPaymentMethod] = useState('all');
   const [status, setStatus] = useState('all');
+  const [debtorsOnly, setDebtorsOnly] = useState(false);
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [voidTarget, setVoidTarget] = useState<Sale | null>(null);
@@ -389,19 +533,39 @@ export function SalesHistoryPage() {
   const rangeParams = rangeToParams(range);
 
   const { data, isLoading } = useQuery({
-    queryKey: ['sales', 'list', range, paymentMethod, status, page],
+    queryKey: ['sales', 'list', range, paymentMethod, status, debtorsOnly, page],
     queryFn: () =>
       salesApi.list({
         page,
         status: status !== 'all' ? status : undefined,
-        paymentMethod: paymentMethod !== 'all' ? paymentMethod : undefined,
+        paymentMethod: debtorsOnly ? 'credit' : (paymentMethod !== 'all' ? paymentMethod : undefined),
         ...rangeParams,
       } as Parameters<typeof salesApi.list>[0]),
     staleTime: 15_000,
   });
 
+  const shopQ = useQuery({
+    queryKey: ['settings', 'shop'],
+    queryFn: () => settingsApi.getShop(),
+    staleTime: 5 * 60_000,
+  });
+  const shopName = shopQ.data?.shop?.name ?? 'JUAKALI STORE';
+  const shopPhone = shopQ.data?.shop?.phone ?? '';
+
+  const creditsQ = useQuery({
+    queryKey: ['credits', 'list', 'active'],
+    queryFn: () => creditsApi.list({ status: 'active' }),
+    staleTime: 30_000,
+  });
+  const outstandingDebt = (creditsQ.data?.accounts ?? []).reduce((s, a) => s + a.balance, 0);
+
   const allSales = data?.sales ?? [];
   const pages = data?.pages ?? 1;
+
+  const creditsBySaleId = new Map<string, CreditAccount>();
+  for (const a of creditsQ.data?.accounts ?? []) {
+    creditsBySaleId.set(a.saleId, a);
+  }
 
   const q = search.trim().toLowerCase();
   const sales = q
@@ -414,7 +578,10 @@ export function SalesHistoryPage() {
       )
     : allSales;
 
-  const totalRevenue = sales.filter(s => s.status === 'completed').reduce((s, sale) => s + sale.total, 0);
+  const completedSales = sales.filter(s => s.status === 'completed');
+  const creditSales = completedSales.filter(s => s.paymentMethod === 'credit');
+  const totalRevenue = completedSales.reduce((s, sale) => s + sale.total, 0);
+  const avgOrder = completedSales.length > 0 ? Math.round(totalRevenue / completedSales.length) : 0;
 
   return (
     <div className="p-4 md:p-6 max-w-6xl">
@@ -424,7 +591,6 @@ export function SalesHistoryPage() {
           <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">Sales History</h1>
           <p className="text-xs text-slate-400 mt-0.5">
             {data ? `${data.total} records` : '…'}
-            {sales.length > 0 && ` · RWF ${totalRevenue.toLocaleString()}`}
           </p>
         </div>
         {sales.length > 0 && (
@@ -451,6 +617,60 @@ export function SalesHistoryPage() {
         )}
       </div>
 
+      {/* Stat cards */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-5">
+        <div className="card p-3">
+          <div className="flex items-center gap-2 mb-1">
+            <DollarSign size={14} className="text-primary-500" />
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Revenue</p>
+          </div>
+          <p className="text-lg font-bold text-slate-900 dark:text-slate-100 tabular-nums">
+            {totalRevenue.toLocaleString()}
+          </p>
+          <p className="text-[10px] text-slate-400">RWF</p>
+        </div>
+        <div className="card p-3">
+          <div className="flex items-center gap-2 mb-1">
+            <CheckCircle2 size={14} className="text-green-500" />
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Completed</p>
+          </div>
+          <p className="text-lg font-bold text-slate-900 dark:text-slate-100 tabular-nums">
+            {completedSales.length}
+          </p>
+          <p className="text-[10px] text-slate-400">sales</p>
+        </div>
+        <div className="card p-3">
+          <div className="flex items-center gap-2 mb-1">
+            <Clock size={14} className="text-amber-500" />
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Credit</p>
+          </div>
+          <p className="text-lg font-bold text-slate-900 dark:text-slate-100 tabular-nums">
+            {creditSales.length}
+          </p>
+          <p className="text-[10px] text-slate-400">sales on credit</p>
+        </div>
+        <div className="card p-3">
+          <div className="flex items-center gap-2 mb-1">
+            <CreditCard size={14} className="text-red-500" />
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Outstanding</p>
+          </div>
+          <p className="text-lg font-bold text-red-600 dark:text-red-400 tabular-nums">
+            {outstandingDebt.toLocaleString()}
+          </p>
+          <p className="text-[10px] text-slate-400">RWF owed</p>
+        </div>
+        <div className="card p-3">
+          <div className="flex items-center gap-2 mb-1">
+            <TrendingUp size={14} className="text-blue-500" />
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Avg Order</p>
+          </div>
+          <p className="text-lg font-bold text-slate-900 dark:text-slate-100 tabular-nums">
+            {avgOrder.toLocaleString()}
+          </p>
+          <p className="text-[10px] text-slate-400">RWF</p>
+        </div>
+      </div>
+
       {/* Search */}
       <div className="relative mb-3">
         <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -471,7 +691,26 @@ export function SalesHistoryPage() {
       </div>
 
       {/* Filters */}
-      <div className="flex flex-wrap gap-2 mb-4">
+      <div className="flex flex-wrap gap-2 mb-4 items-center">
+        {/* Debtors quick tab */}
+        <button
+          onClick={() => { setDebtorsOnly((p) => !p); setPaymentMethod('all'); setPage(1); }}
+          className={clsx(
+            'flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors',
+            debtorsOnly
+              ? 'bg-amber-500 border-amber-500 text-white'
+              : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-amber-300',
+          )}
+        >
+          <CreditCard size={12} />
+          Debtors
+          {outstandingDebt > 0 && !debtorsOnly && (
+            <span className="ml-1 text-[9px] font-bold bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full">
+              {creditsQ.data?.accounts?.length ?? ''}
+            </span>
+          )}
+        </button>
+
         {/* Date range */}
         <div className="flex rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
           {RANGES.map((r) => (
@@ -490,18 +729,20 @@ export function SalesHistoryPage() {
           ))}
         </div>
 
-        {/* Payment method */}
-        <select
-          className="input text-xs py-1.5 w-auto"
-          value={paymentMethod}
-          onChange={(e) => { setPaymentMethod(e.target.value); setPage(1); }}
-        >
-          <option value="all">All methods</option>
-          <option value="cash">Cash</option>
-          <option value="mobile_money">Mobile Money</option>
-          <option value="card">Card</option>
-          <option value="credit">Credit</option>
-        </select>
+        {/* Payment method — hidden when debtors tab active */}
+        {!debtorsOnly && (
+          <select
+            className="input text-xs py-1.5 w-auto"
+            value={paymentMethod}
+            onChange={(e) => { setPaymentMethod(e.target.value); setPage(1); }}
+          >
+            <option value="all">All methods</option>
+            <option value="cash">Cash</option>
+            <option value="mobile_money">Mobile Money</option>
+            <option value="card">Card</option>
+            <option value="credit">Credit</option>
+          </select>
+        )}
 
         {/* Status */}
         <select
@@ -524,7 +765,7 @@ export function SalesHistoryPage() {
         ) : sales.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-40 text-slate-400 gap-2">
             <Receipt size={32} className="opacity-30" />
-            <p className="text-sm">No sales found</p>
+            <p className="text-sm">{debtorsOnly ? 'No credit sales in this period' : 'No sales found'}</p>
           </div>
         ) : (
           <table className="w-full text-sm">
@@ -542,7 +783,15 @@ export function SalesHistoryPage() {
             </thead>
             <tbody>
               {sales.map((sale) => (
-                <SaleRow key={sale._id} sale={sale} onVoid={setVoidTarget} onEdit={setEditTarget} />
+                <SaleRow
+                  key={sale._id}
+                  sale={sale}
+                  onVoid={setVoidTarget}
+                  onEdit={setEditTarget}
+                  shopName={shopName}
+                  shopPhone={shopPhone}
+                  creditAccount={debtorsOnly ? creditsBySaleId.get(sale._id) : undefined}
+                />
               ))}
             </tbody>
           </table>

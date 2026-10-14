@@ -23,7 +23,16 @@ export interface ShopDetails {
   lowStockDefault: number;
 }
 
+export interface ProfileUpdateBody {
+  name?: string;
+  phone?: string;
+  preferredLanguage?: 'en' | 'fr' | 'rw';
+  profilePicture?: string;
+}
+
 export const settingsApi = {
+  updateProfile: (body: ProfileUpdateBody) =>
+    api.patch<{ user: { id: string; name: string; email: string; preferredLanguage: string; profilePicture?: string } }>('/auth/profile', body),
   getShop: () => api.get<{ shop: ShopDetails }>('/auth/shop'),
   updateShop: (data: Partial<Omit<ShopDetails, '_id'>>) =>
     api.patch<{ shop: ShopDetails }>('/auth/shop', data),

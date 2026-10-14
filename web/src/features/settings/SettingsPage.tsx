@@ -1,12 +1,14 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { toast } from 'sonner';
+import { useTranslation } from 'react-i18next';
+import i18n from '@/i18n';
 import {
   Building2, Users, User, Shield, Eye, EyeOff,
-  MoreVertical, UserCheck, UserX, Key,
+  MoreVertical, UserCheck, UserX, Key, Camera,
 } from 'lucide-react';
 import { settingsApi, type ShopStaff, type ShopDetails } from '@/lib/settingsApi';
 import { useAuth } from '@/hooks/useAuth';
@@ -557,8 +559,62 @@ const changePwSchema = z.object({
 
 type ChangePwData = z.infer<typeof changePwSchema>;
 
-function AccountTab({ user }: { user: { name: string; email: string } }) {
+const LANGUAGES = [
+  { code: 'en', label: 'English', flag: '🇬🇧' },
+  { code: 'fr', label: 'Français', flag: '🇫🇷' },
+  { code: 'rw', label: 'Kinyarwanda', flag: '🇷🇼' },
+] as const;
+
+async function resizeToBase64(file: File, maxPx = 200): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      const scale = Math.min(1, maxPx / Math.max(img.width, img.height));
+      const w = Math.round(img.width * scale);
+      const h = Math.round(img.height * scale);
+      const canvas = document.createElement('canvas');
+      canvas.width = w;
+      canvas.height = h;
+      canvas.getContext('2d')!.drawImage(img, 0, 0, w, h);
+      URL.revokeObjectURL(url);
+      resolve(canvas.toDataURL('image/jpeg', 0.82));
+    };
+    img.onerror = reject;
+    img.src = url;
+  });
+}
+
+function AccountTab({ user }: { user: { name: string; email: string; profilePicture?: string; preferredLanguage?: string } }) {
+  const qc = useQueryClient();
+  const { t } = useTranslation();
   const [showPw, setShowPw] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const profileMut = useMutation({
+    mutationFn: (body: Parameters<typeof settingsApi.updateProfile>[0]) =>
+      settingsApi.updateProfile(body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['auth', 'me'] }),
+    onError: (e) => toast.error(e.message),
+  });
+
+  const handlePicture = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const base64 = await resizeToBase64(file);
+      await profileMut.mutateAsync({ profilePicture: base64 });
+      toast.success('Profile picture updated');
+    } catch {
+      toast.error('Failed to upload picture');
+    }
+    e.target.value = '';
+  };
+
+  const handleLanguage = (code: 'en' | 'fr' | 'rw') => {
+    i18n.changeLanguage(code);
+    profileMut.mutate({ preferredLanguage: code });
+  };
 
   const {
     register,
@@ -567,7 +623,7 @@ function AccountTab({ user }: { user: { name: string; email: string } }) {
     formState: { errors },
   } = useForm<ChangePwData>({ resolver: zodResolver(changePwSchema) });
 
-  const mutation = useMutation({
+  const pwMutation = useMutation({
     mutationFn: (data: ChangePwData) =>
       fetch('/api/auth/change-password', {
         method: 'POST',
@@ -580,19 +636,31 @@ function AccountTab({ user }: { user: { name: string; email: string } }) {
           throw new Error(err.error?.message ?? 'Failed');
         }
       }),
-    onSuccess: () => {
-      toast.success('Password changed successfully');
-      reset();
-    },
+    onSuccess: () => { toast.success('Password changed'); reset(); },
     onError: (e) => toast.error(e.message),
   });
 
+  const activeLang = user.preferredLanguage ?? i18n.language ?? 'en';
+
   return (
     <div className="max-w-md space-y-6">
-      {/* Profile card */}
+      {/* Profile card with picture upload */}
       <div className="card p-5 flex items-center gap-4">
-        <div className="h-14 w-14 rounded-full bg-primary-600 flex items-center justify-center flex-shrink-0">
-          <span className="text-xl font-bold text-white">{user.name[0]?.toUpperCase()}</span>
+        <div className="relative flex-shrink-0">
+          <div className="h-16 w-16 rounded-full bg-primary-600 flex items-center justify-center overflow-hidden">
+            {user.profilePicture
+              ? <img src={user.profilePicture} alt="" className="h-full w-full object-cover" />
+              : <span className="text-2xl font-bold text-white">{user.name[0]?.toUpperCase()}</span>}
+          </div>
+          <button
+            onClick={() => fileRef.current?.click()}
+            disabled={profileMut.isPending}
+            className="absolute -bottom-0.5 -right-0.5 h-6 w-6 rounded-full bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 flex items-center justify-center shadow-sm hover:bg-slate-50 dark:hover:bg-slate-600 transition-colors"
+            title="Change photo"
+          >
+            <Camera size={11} className="text-slate-500" />
+          </button>
+          <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handlePicture} />
         </div>
         <div>
           <p className="font-semibold text-slate-800 dark:text-slate-200">{user.name}</p>
@@ -600,12 +668,34 @@ function AccountTab({ user }: { user: { name: string; email: string } }) {
         </div>
       </div>
 
+      {/* Language */}
+      <div className="card p-5">
+        <h3 className="font-semibold text-slate-800 dark:text-slate-200 mb-3">Language</h3>
+        <div className="flex gap-2">
+          {LANGUAGES.map((lang) => (
+            <button
+              key={lang.code}
+              onClick={() => handleLanguage(lang.code)}
+              className={clsx(
+                'flex items-center gap-2 px-3 py-2 rounded-lg border text-sm font-medium transition-colors',
+                activeLang === lang.code
+                  ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20 text-primary-700 dark:text-primary-400'
+                  : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-600',
+              )}
+            >
+              <span>{lang.flag}</span>
+              <span>{lang.label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
       {/* Change password */}
       <div className="card p-5">
-        <h3 className="font-semibold text-slate-800 dark:text-slate-200 mb-4">Change Password</h3>
-        <form onSubmit={handleSubmit((d) => mutation.mutate(d))} className="space-y-4">
+        <h3 className="font-semibold text-slate-800 dark:text-slate-200 mb-4">{t('auth.changePassword')}</h3>
+        <form onSubmit={handleSubmit((d) => pwMutation.mutate(d))} className="space-y-4">
           <div>
-            <label className="label">Current Password</label>
+            <label className="label">{t('auth.currentPassword')}</label>
             <div className="relative">
               <input {...register('currentPassword')} type={showPw ? 'text' : 'password'} className="input pr-10" />
               <button type="button" onClick={() => setShowPw((p) => !p)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">
@@ -615,7 +705,7 @@ function AccountTab({ user }: { user: { name: string; email: string } }) {
             {errors.currentPassword && <p className="text-xs text-red-500 mt-1">{errors.currentPassword.message}</p>}
           </div>
           <div>
-            <label className="label">New Password</label>
+            <label className="label">{t('auth.newPassword')}</label>
             <input {...register('newPassword')} type="password" className="input" placeholder="Min. 10 characters" />
             {errors.newPassword && <p className="text-xs text-red-500 mt-1">{errors.newPassword.message}</p>}
           </div>
@@ -624,8 +714,8 @@ function AccountTab({ user }: { user: { name: string; email: string } }) {
             <input {...register('confirm')} type="password" className="input" />
             {errors.confirm && <p className="text-xs text-red-500 mt-1">{errors.confirm.message}</p>}
           </div>
-          <button type="submit" className="btn-primary" disabled={mutation.isPending}>
-            {mutation.isPending ? 'Saving…' : 'Change Password'}
+          <button type="submit" className="btn-primary" disabled={pwMutation.isPending}>
+            {pwMutation.isPending ? 'Saving…' : t('auth.changePassword')}
           </button>
         </form>
       </div>
@@ -662,6 +752,8 @@ export function SettingsPage() {
   const userId = auth?.user?.id ?? '';
   const userName = auth?.user?.name ?? '';
   const userEmail = auth?.user?.email ?? '';
+  const userPicture = auth?.user?.profilePicture;
+  const userLang = auth?.user?.preferredLanguage;
 
   return (
     <div className="p-4 md:p-6 max-w-5xl">
@@ -691,7 +783,7 @@ export function SettingsPage() {
 
       {tab === 'shop'    && <ShopTab role={role} />}
       {tab === 'staff'   && <StaffTab userRole={role} currentUserId={userId} />}
-      {tab === 'account' && <AccountTab user={{ name: userName, email: userEmail }} />}
+      {tab === 'account' && <AccountTab user={{ name: userName, email: userEmail, profilePicture: userPicture, preferredLanguage: userLang }} />}
     </div>
   );
 }

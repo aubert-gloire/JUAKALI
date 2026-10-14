@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import i18n from '@/i18n';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth, useLogout } from '@/hooks/useAuth';
 import { OfflineBanner } from './OfflineBanner';
@@ -39,6 +40,13 @@ const BOTTOM_TABS = [
   { to: '/more',      label: 'nav.more',      icon: MoreHorizontal },
 ];
 
+// Routes each role can see — cashier gets the essentials, manager gets sales ops, owner gets everything
+const CASHIER_ROUTES = new Set(['/sell', '/products', '/dashboard', '/more']);
+const MANAGER_ROUTES = new Set([
+  '/sell', '/products', '/dashboard', '/more',
+  '/sales-history', '/credits', '/customers', '/expenses', '/alerts',
+]);
+
 const NAV_GROUPS = [
   {
     items: [
@@ -72,6 +80,14 @@ const NAV_GROUPS = [
     ],
   },
 ];
+
+function filterNavByRole(role?: string) {
+  if (!role || role === 'owner') return NAV_GROUPS;
+  const allowed = role === 'cashier' ? CASHIER_ROUTES : MANAGER_ROUTES;
+  return NAV_GROUPS
+    .map((g) => ({ ...g, items: g.items.filter((i) => allowed.has(i.to)) }))
+    .filter((g) => g.items.length > 0);
+}
 
 function NotificationBell() {
   const navigate = useNavigate();
@@ -239,8 +255,17 @@ export function AppLayout() {
   const { data: sub } = useSubscription();
 
   const userInitial = data?.user.name?.[0]?.toUpperCase() ?? '?';
+  const profilePicture = data?.user.profilePicture;
   const membership = data?.memberships?.[0];
   const shopName = membership?.shopId?.name ?? 'Shop';
+  const role = membership?.role;
+  const navGroups = filterNavByRole(role);
+
+  useEffect(() => {
+    if (data?.user.preferredLanguage) {
+      i18n.changeLanguage(data.user.preferredLanguage);
+    }
+  }, [data?.user.preferredLanguage]);
 
   return (
     <div className="flex min-h-screen bg-slate-50 dark:bg-slate-950">
@@ -267,7 +292,7 @@ export function AppLayout() {
 
         {/* Navigation */}
         <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-4">
-          {NAV_GROUPS.map((group, gi) => (
+          {navGroups.map((group, gi) => (
             <div key={gi}>
               {group.label && (
                 <p className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-widest text-slate-600">
@@ -313,8 +338,10 @@ export function AppLayout() {
           </button>
 
           <div className="flex items-center gap-2.5 px-3 py-2 rounded-md hover:bg-slate-800 transition-colors cursor-default">
-            <div className="h-7 w-7 rounded-full bg-primary-600 flex items-center justify-center flex-shrink-0">
-              <span className="text-xs font-bold text-white">{userInitial}</span>
+            <div className="h-7 w-7 rounded-full bg-primary-600 flex items-center justify-center flex-shrink-0 overflow-hidden">
+              {profilePicture
+                ? <img src={profilePicture} alt="" className="h-full w-full object-cover" />
+                : <span className="text-xs font-bold text-white">{userInitial}</span>}
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-xs font-semibold text-slate-200 truncate">{data?.user.name}</p>

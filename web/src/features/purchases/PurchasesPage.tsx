@@ -300,7 +300,7 @@ export function PurchasesPage() {
   return (
     <div className="p-4 md:p-6 space-y-4 max-w-5xl">
       <div className="flex items-center justify-between flex-wrap gap-3">
-        <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">Purchases</h1>
+        <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">Stock Orders</h1>
         <div className="flex items-center gap-2">
           {orders.length > 0 && (<>
             <button onClick={() => printTable(orders, PO_COLS, 'Purchase Orders')} className="flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"><Printer size={13} /> Print</button>
