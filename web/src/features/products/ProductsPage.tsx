@@ -273,6 +273,9 @@ function ProductGridCard({
       <div className="flex-1">
         <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 line-clamp-2 leading-tight">{product.name}</p>
         <p className="text-[10px] text-slate-400 font-mono mt-0.5">{product.sku}</p>
+        {product.description && (
+          <p className="text-[10px] text-slate-400 mt-0.5 line-clamp-2 leading-snug">{product.description}</p>
+        )}
       </div>
       <div className="flex items-center justify-between">
         <StockBadge qty={product.stockQty} />
