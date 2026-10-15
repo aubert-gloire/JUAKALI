@@ -32,6 +32,7 @@ const ProductSchema = z.object({
   unit:          z.string().default('pcs'),
   costPrice:     z.coerce.number().int().min(0, 'Must be ≥ 0'),
   sellingPrice:  z.coerce.number().int().min(0, 'Must be ≥ 0'),
+  stockQty:      z.coerce.number().int().min(0).default(0),
   reorderLevel:  z.coerce.number().int().min(0).optional(),
   description:   z.string().optional(),
 });
@@ -79,7 +80,7 @@ function ProductModal({
     formState: { errors, isSubmitting },
   } = useForm<ProductFormData>({
     resolver: zodResolver(ProductSchema),
-    defaultValues: { unit: 'pcs', costPrice: 0, sellingPrice: 0, name: '', sku: '', barcode: '', description: '', reorderLevel: undefined },
+    defaultValues: { costPrice: 0, sellingPrice: 0, stockQty: 0, name: '', sku: '', barcode: '', description: '', reorderLevel: undefined },
   });
 
   useEffect(() => {
@@ -91,11 +92,12 @@ function ProductModal({
         unit:         editing.unit,
         costPrice:    editing.costPrice,
         sellingPrice: editing.sellingPrice,
+        stockQty:     editing.stockQty,
         reorderLevel: editing.reorderLevel ?? undefined,
         description:  editing.description ?? '',
       });
     } else {
-      reset({ unit: 'pcs', costPrice: 0, sellingPrice: 0, name: '', sku: '', barcode: '', description: '', reorderLevel: undefined });
+      reset({ costPrice: 0, sellingPrice: 0, stockQty: 0, name: '', sku: '', barcode: '', description: '', reorderLevel: undefined });
     }
   }, [editing, open, reset]);
 
@@ -157,12 +159,8 @@ function ProductModal({
             </div>
 
             <div>
-              <label className="label">Unit</label>
-              <select {...register('unit')} className="input mt-1">
-                {['pcs', 'set', 'pair', 'litre', 'kg', 'box', 'roll'].map((u) => (
-                  <option key={u} value={u}>{u}</option>
-                ))}
-              </select>
+              <label className="label">Quantity</label>
+              <input type="number" {...register('stockQty')} className="input mt-1" min={0} step={1} placeholder="0" />
             </div>
 
             <div>

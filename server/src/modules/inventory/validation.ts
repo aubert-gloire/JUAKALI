@@ -13,6 +13,7 @@ export const ProductBodySchema = z.object({
   unit: z.string().default('pcs'),
   costPrice: z.number().int().min(0),
   sellingPrice: z.number().int().min(0),
+  stockQty: z.number().int().min(0).default(0),
   reorderLevel: z.number().int().min(0).default(5),
   description: z.string().optional(),
 });

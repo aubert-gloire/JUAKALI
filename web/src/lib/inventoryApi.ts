@@ -101,6 +101,7 @@ export type ProductCreateBody = {
   unit?: string;
   costPrice: number;
   sellingPrice: number;
+  stockQty?: number;
   reorderLevel?: number;
   description?: string;
 };
