@@ -66,6 +66,7 @@ export interface Customer {
   name: string;
   phone?: string;
   email?: string;
+  tin?: string;
   notes?: string;
   totalSpent: number;
   salesCount: number;
@@ -148,7 +149,7 @@ export const salesApi = {
 
 // ── Customers ─────────────────────────────────────────────────────────────────
 
-export type CustomerBody = { name: string; phone?: string; email?: string; notes?: string };
+export type CustomerBody = { name: string; phone?: string; email?: string; tin?: string; notes?: string };
 
 export const customersApi = {
   list: (search?: string) =>

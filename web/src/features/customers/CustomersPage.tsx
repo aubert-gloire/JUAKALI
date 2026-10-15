@@ -23,6 +23,7 @@ const schema = z.object({
   name: z.string().min(1, 'Name is required'),
   phone: z.string().optional(),
   email: z.string().email('Invalid email').optional().or(z.literal('')),
+  tin: z.string().optional(),
   notes: z.string().optional(),
 });
 type FormData = z.infer<typeof schema>;
@@ -46,14 +47,14 @@ function CustomerModal({
     formState: { errors, isSubmitting },
   } = useForm<FormData>({
     resolver: zodResolver(schema),
-    defaultValues: { name: '', phone: '', email: '', notes: '' },
+    defaultValues: { name: '', phone: '', email: '', tin: '', notes: '' },
   });
 
   useEffect(() => {
     if (customer) {
-      reset({ name: customer.name, phone: customer.phone ?? '', email: customer.email ?? '', notes: customer.notes ?? '' });
+      reset({ name: customer.name, phone: customer.phone ?? '', email: customer.email ?? '', tin: customer.tin ?? '', notes: customer.notes ?? '' });
     } else {
-      reset({ name: '', phone: '', email: '', notes: '' });
+      reset({ name: '', phone: '', email: '', tin: '', notes: '' });
     }
   }, [customer, reset]);
 
@@ -75,6 +76,7 @@ function CustomerModal({
       name: data.name,
       phone: data.phone || undefined,
       email: data.email || undefined,
+      tin: data.tin || undefined,
       notes: data.notes || undefined,
     });
 
@@ -112,6 +114,11 @@ function CustomerModal({
               <label className="form-label">Email</label>
               <input className="input" placeholder="email@…" {...register('email')} />
               {errors.email && <p className="form-error">{errors.email.message}</p>}
+            </div>
+            {/* TIN */}
+            <div className="col-span-2">
+              <label className="form-label">TIN Number</label>
+              <input className="input" placeholder="e.g. 123456789" {...register('tin')} />
             </div>
           </div>
 

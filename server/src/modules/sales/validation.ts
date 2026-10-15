@@ -31,6 +31,7 @@ export const CustomerSchema = z.object({
   name: z.string().min(1).trim(),
   phone: z.string().trim().optional(),
   email: z.string().email().optional().or(z.literal('')),
+  tin: z.string().trim().optional(),
   notes: z.string().optional(),
 });
 

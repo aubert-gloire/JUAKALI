@@ -878,6 +878,7 @@ export function SellPage() {
   const [showQuickAdd, setShowQuickAdd] = useState(false);
   const [quickAddName, setQuickAddName] = useState('');
   const [quickAddPhone, setQuickAddPhone] = useState('');
+  const [quickAddTIN, setQuickAddTIN] = useState('');
 
   // Data
   const shopQ = useQuery({
@@ -912,6 +913,7 @@ export function SellPage() {
       setShowQuickAdd(false);
       setQuickAddName('');
       setQuickAddPhone('');
+      setQuickAddTIN('');
       setShowPayment(false);
       setShowMobileCart(false);
       qc.invalidateQueries({ queryKey: ['sales'] });
@@ -929,6 +931,7 @@ export function SellPage() {
       setShowQuickAdd(false);
       setQuickAddName('');
       setQuickAddPhone('');
+      setQuickAddTIN('');
       qc.invalidateQueries({ queryKey: ['sales', 'customers'] });
     },
     onError: (e) => toast.error(e.message),
@@ -1162,7 +1165,7 @@ export function SellPage() {
                     <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">New customer</span>
                   </div>
                   <button
-                    onClick={() => { setShowQuickAdd(false); setQuickAddName(''); setQuickAddPhone(''); }}
+                    onClick={() => { setShowQuickAdd(false); setQuickAddName(''); setQuickAddPhone(''); setQuickAddTIN(''); }}
                     className="text-slate-400 hover:text-slate-600"
                   >
                     <X size={13} />
@@ -1184,11 +1187,17 @@ export function SellPage() {
                     onChange={(e) => setQuickAddPhone(e.target.value)}
                   />
                 </div>
+                <input
+                  className="input text-xs py-1.5"
+                  placeholder="TIN number (optional)"
+                  value={quickAddTIN}
+                  onChange={(e) => setQuickAddTIN(e.target.value)}
+                />
                 <button
                   onClick={() => {
                     const name = quickAddName.trim();
                     if (!name) return;
-                    createCustomer.mutate({ name, phone: quickAddPhone.trim() || undefined });
+                    createCustomer.mutate({ name, phone: quickAddPhone.trim() || undefined, tin: quickAddTIN.trim() || undefined });
                   }}
                   disabled={createCustomer.isPending || !quickAddName.trim()}
                   className="w-full py-1.5 text-xs rounded-lg bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-50 font-medium"

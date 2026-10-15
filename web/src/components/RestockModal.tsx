@@ -6,7 +6,9 @@ import { purchasesApi, productsApi, suppliersApi, type Product, type Supplier } 
 
 export function RestockModal({ product, onClose }: { product: Product; onClose: () => void }) {
   const qc = useQueryClient();
-  const [qty, setQty] = useState('');
+  const [qty, setQty] = useState(
+    product.reorderLevel > product.stockQty ? String(product.reorderLevel - product.stockQty) : '',
+  );
   const [unitCost, setUnitCost] = useState(String(product.costPrice || ''));
   const [sellingPrice, setSellingPrice] = useState(String(product.sellingPrice || ''));
   const [supplierId, setSupplierId] = useState('');
