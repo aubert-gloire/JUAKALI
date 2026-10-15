@@ -380,7 +380,7 @@ export function ProductsPage() {
   const navigate = useNavigate();
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
-  const [sort, setSort] = useState<'default' | 'qty-asc' | 'qty-desc' | 'newest' | 'oldest'>('default');
+  const [sort, setSort] = useState<'default' | 'qty-asc' | 'qty-desc' | 'newest' | 'oldest'>('newest');
   const [modalOpen, setModalOpen] = useState(false);
   const [csvOpen, setCsvOpen] = useState(false);
   const [editing, setEditing] = useState<Product | null>(null);
