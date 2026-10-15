@@ -491,9 +491,18 @@ inventoryRouter.post(
     let resolvedSupplierName = body.supplierName;
 
     if (!resolvedSupplierId && body.supplierName?.trim()) {
+      const contactFields: Record<string, string> = {};
+      if (body.supplierPhone?.trim()) contactFields.phone = body.supplierPhone.trim();
+      if (body.supplierEmail?.trim()) contactFields.email = body.supplierEmail.trim();
+
+      const supplierUpdate: Record<string, unknown> = {
+        $setOnInsert: { ...shopFilter(req), name: body.supplierName.trim() },
+      };
+      if (Object.keys(contactFields).length > 0) supplierUpdate.$set = contactFields;
+
       const supplier = await Supplier.findOneAndUpdate(
         { ...shopFilter(req), name: { $regex: new RegExp(`^${body.supplierName.trim()}$`, 'i') } },
-        { $setOnInsert: { ...shopFilter(req), name: body.supplierName.trim() } },
+        supplierUpdate,
         { upsert: true, new: true },
       );
       resolvedSupplierId = supplier._id;

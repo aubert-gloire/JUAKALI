@@ -14,6 +14,8 @@ export function RestockModal({ product, onClose }: { product: Product; onClose: 
   const [supplierId, setSupplierId] = useState('');
   const [supplierInput, setSupplierInput] = useState('');
   const [supplierOpen, setSupplierOpen] = useState(false);
+  const [newSupplierPhone, setNewSupplierPhone] = useState('');
+  const [newSupplierEmail, setNewSupplierEmail] = useState('');
   const [notes, setNotes] = useState('');
 
   const suppliersQ = useQuery({
@@ -33,6 +35,8 @@ export function RestockModal({ product, onClose }: { product: Product; onClose: 
       const { order } = await purchasesApi.create({
         supplierId: supplierId || undefined,
         supplierName: supplierInput || undefined,
+        supplierPhone: !supplierId && newSupplierPhone.trim() ? newSupplierPhone.trim() : undefined,
+        supplierEmail: !supplierId && newSupplierEmail.trim() ? newSupplierEmail.trim() : undefined,
         lines: [{ productId: product._id, qty: parseInt(qty), unitCost: costNum }],
         notes: notes || undefined,
       });
@@ -45,6 +49,7 @@ export function RestockModal({ product, onClose }: { product: Product; onClose: 
       toast.success(`${parseInt(qty)} ${product.unit} added to ${product.name}`);
       qc.invalidateQueries({ queryKey: ['inventory', 'products'] });
       qc.invalidateQueries({ queryKey: ['inventory', 'purchases'] });
+      qc.invalidateQueries({ queryKey: ['inventory', 'suppliers'] });
       qc.invalidateQueries({ queryKey: ['inventory', 'stats'] });
       qc.invalidateQueries({ queryKey: ['inventory', 'lowStock'] });
       onClose();
@@ -155,6 +160,30 @@ export function RestockModal({ product, onClose }: { product: Product; onClose: 
               )}
             </div>
           </div>
+
+          {/* New supplier contact fields */}
+          {!supplierId && supplierInput.trim() && (
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Phone</label>
+                <input
+                  className="input mt-1.5"
+                  placeholder="Optional"
+                  value={newSupplierPhone}
+                  onChange={(e) => setNewSupplierPhone(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Email</label>
+                <input
+                  className="input mt-1.5"
+                  placeholder="Optional"
+                  value={newSupplierEmail}
+                  onChange={(e) => setNewSupplierEmail(e.target.value)}
+                />
+              </div>
+            </div>
+          )}
 
           {/* Notes */}
           <div>

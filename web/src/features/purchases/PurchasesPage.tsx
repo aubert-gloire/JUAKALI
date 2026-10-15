@@ -32,10 +32,12 @@ const LineSchema = z.object({
 });
 
 const Schema = z.object({
-  supplierId:   z.string().optional(),
-  supplierName: z.string().optional(),
-  lines:        z.array(LineSchema).min(1, 'Add at least one product'),
-  notes:        z.string().optional(),
+  supplierId:    z.string().optional(),
+  supplierName:  z.string().optional(),
+  supplierPhone: z.string().trim().optional(),
+  supplierEmail: z.string().trim().optional(),
+  lines:         z.array(LineSchema).min(1, 'Add at least one product'),
+  notes:         z.string().optional(),
 });
 type FormData = z.infer<typeof Schema>;
 
@@ -64,6 +66,8 @@ function CreatePOModal({ open, onClose }: { open: boolean; onClose: () => void }
   const qc = useQueryClient();
   const [supplierInput, setSupplierInput] = useState('');
   const [supplierOpen, setSupplierOpen] = useState(false);
+  const [newSupplierPhone, setNewSupplierPhone] = useState('');
+  const [newSupplierEmail, setNewSupplierEmail] = useState('');
 
   const suppliersQ = useQuery({ queryKey: ['inventory', 'suppliers'], queryFn: () => suppliersApi.list(), staleTime: 60_000 });
   const productsQ  = useQuery({ queryKey: ['inventory', 'products', '', '', 1], queryFn: () => productsApi.list({ limit: 200 }), staleTime: 30_000 });
@@ -81,13 +85,20 @@ function CreatePOModal({ open, onClose }: { open: boolean; onClose: () => void }
   const total = lines.reduce((s, l) => s + (Number(l.qty) || 0) * (Number(l.unitCost) || 0), 0);
 
   const create = useMutation({
-    mutationFn: (d: FormData) => purchasesApi.create(d),
+    mutationFn: (d: FormData) => purchasesApi.create({
+      ...d,
+      supplierPhone: newSupplierPhone.trim() || undefined,
+      supplierEmail: newSupplierEmail.trim() || undefined,
+    }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['inventory', 'purchases'] });
+      qc.invalidateQueries({ queryKey: ['inventory', 'suppliers'] });
       toast.success('Purchase order created');
       onClose();
       reset();
       setSupplierInput('');
+      setNewSupplierPhone('');
+      setNewSupplierEmail('');
     },
     onError: (e) => toast.error(e.message),
   });
@@ -145,7 +156,7 @@ function CreatePOModal({ open, onClose }: { open: boolean; onClose: () => void }
                   <button
                     type="button"
                     className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                    onMouseDown={(e) => { e.preventDefault(); setSupplierInput(''); setValue('supplierName', undefined); setValue('supplierId', undefined); }}
+                    onMouseDown={(e) => { e.preventDefault(); setSupplierInput(''); setValue('supplierName', undefined); setValue('supplierId', undefined); setNewSupplierPhone(''); setNewSupplierEmail(''); }}
                   >
                     <X size={13} />
                   </button>
@@ -187,6 +198,29 @@ function CreatePOModal({ open, onClose }: { open: boolean; onClose: () => void }
                       ✉ {selectedSupplier.email}
                     </a>
                   )}
+                </div>
+              )}
+              {/* New supplier — show contact fields */}
+              {!selectedSupplierId && supplierInput.trim() && (
+                <div className="mt-2 grid grid-cols-2 gap-2">
+                  <div className="relative">
+                    <Phone size={11} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      className="input text-xs py-1.5 pl-7"
+                      placeholder="Phone (optional)"
+                      value={newSupplierPhone}
+                      onChange={(e) => setNewSupplierPhone(e.target.value)}
+                    />
+                  </div>
+                  <div className="relative">
+                    <Mail size={11} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      className="input text-xs py-1.5 pl-7"
+                      placeholder="Email (optional)"
+                      value={newSupplierEmail}
+                      onChange={(e) => setNewSupplierEmail(e.target.value)}
+                    />
+                  </div>
                 </div>
               )}
             </div>

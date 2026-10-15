@@ -155,6 +155,8 @@ export const suppliersApi = {
 export type PurchaseCreateBody = {
   supplierId?: string;
   supplierName?: string;
+  supplierPhone?: string;
+  supplierEmail?: string;
   lines: { productId: string; qty: number; unitCost: number }[];
   notes?: string;
 };

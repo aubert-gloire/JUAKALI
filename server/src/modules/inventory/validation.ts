@@ -44,6 +44,8 @@ export const PurchaseLineSchema = z.object({
 export const PurchaseCreateSchema = z.object({
   supplierId: z.string().optional(),
   supplierName: z.string().optional(),
+  supplierPhone: z.string().trim().optional(),
+  supplierEmail: z.string().trim().optional(),
   lines: z.array(PurchaseLineSchema).min(1),
   notes: z.string().optional(),
 });
