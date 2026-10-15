@@ -380,6 +380,7 @@ export function ProductsPage() {
   const navigate = useNavigate();
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
+  const [sort, setSort] = useState<'default' | 'qty-asc' | 'qty-desc' | 'newest' | 'oldest'>('default');
   const [modalOpen, setModalOpen] = useState(false);
   const [csvOpen, setCsvOpen] = useState(false);
   const [editing, setEditing] = useState<Product | null>(null);
@@ -391,6 +392,14 @@ export function ProductsPage() {
   const openEdit = (p: Product) => { setEditing(p); setModalOpen(true); };
   const openAdd  = () => { setEditing(null); setModalOpen(true); };
   const onSell   = (p: Product) => navigate('/sell', { state: { addProduct: p } });
+
+  const sortedProducts = [...(prodQ.data?.products ?? [])].sort((a, b) => {
+    if (sort === 'qty-asc')  return a.stockQty - b.stockQty;
+    if (sort === 'qty-desc') return b.stockQty - a.stockQty;
+    if (sort === 'newest')   return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    if (sort === 'oldest')   return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+    return 0;
+  });
 
   return (
     <div className="p-4 md:p-6 space-y-4 max-w-6xl">
@@ -427,10 +436,21 @@ export function ProductsPage() {
             onChange={(e) => { setSearch(e.target.value); setPage(1); }}
           />
         </div>
-        {search && (
+        <select
+          className="input text-sm py-2 pr-8 min-w-[140px]"
+          value={sort}
+          onChange={(e) => setSort(e.target.value as typeof sort)}
+        >
+          <option value="default">Default order</option>
+          <option value="qty-asc">Qty: Low → High</option>
+          <option value="qty-desc">Qty: High → Low</option>
+          <option value="newest">Newest first</option>
+          <option value="oldest">Oldest first</option>
+        </select>
+        {(search || sort !== 'default') && (
           <button
             className="btn-secondary gap-1.5"
-            onClick={() => { setSearch(''); setPage(1); }}
+            onClick={() => { setSearch(''); setSort('default'); setPage(1); }}
           >
             <Sliders size={14} /> Clear
           </button>
@@ -450,7 +470,7 @@ export function ProductsPage() {
           </div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
-            {prodQ.data!.products.map((p) => (
+            {sortedProducts.map((p) => (
               <ProductGridCard
                 key={p._id}
                 product={p}
