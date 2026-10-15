@@ -176,7 +176,7 @@ function NotificationBell() {
                         <p className={clsx('text-xs font-bold', product.stockQty <= 0 ? 'text-red-600' : 'text-orange-600')}>
                           {product.stockQty} left
                         </p>
-                        <p className="text-[10px] text-slate-400">min {product.reorderLevel}</p>
+                        <p className="text-[10px] text-slate-400">alert at {product.reorderLevel}</p>
                       </div>
                     </div>
                   </button>

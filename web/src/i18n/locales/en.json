@@ -74,7 +74,7 @@
     "quantity": "Quantity",
     "costPrice": "Cost Price",
     "sellingPrice": "Selling Price",
-    "reorderLevel": "Reorder Level",
+    "reorderLevel": "Alert Reminder",
     "lowStock": "Low Stock",
     "importCsv": "Import CSV",
     "unit": "Unit",

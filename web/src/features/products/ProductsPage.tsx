@@ -32,6 +32,7 @@ const ProductSchema = z.object({
   unit:          z.string().default('pcs'),
   costPrice:     z.coerce.number().int().min(0, 'Must be ≥ 0'),
   sellingPrice:  z.coerce.number().int().min(0, 'Must be ≥ 0'),
+  reorderLevel:  z.coerce.number().int().min(0).optional(),
   description:   z.string().optional(),
 });
 type ProductFormData = z.infer<typeof ProductSchema>;
@@ -78,7 +79,7 @@ function ProductModal({
     formState: { errors, isSubmitting },
   } = useForm<ProductFormData>({
     resolver: zodResolver(ProductSchema),
-    defaultValues: { unit: 'pcs', costPrice: 0, sellingPrice: 0, name: '', sku: '', barcode: '', description: '' },
+    defaultValues: { unit: 'pcs', costPrice: 0, sellingPrice: 0, name: '', sku: '', barcode: '', description: '', reorderLevel: undefined },
   });
 
   useEffect(() => {
@@ -90,10 +91,11 @@ function ProductModal({
         unit:         editing.unit,
         costPrice:    editing.costPrice,
         sellingPrice: editing.sellingPrice,
+        reorderLevel: editing.reorderLevel ?? undefined,
         description:  editing.description ?? '',
       });
     } else {
-      reset({ unit: 'pcs', costPrice: 0, sellingPrice: 0, name: '', sku: '', barcode: '', description: '' });
+      reset({ unit: 'pcs', costPrice: 0, sellingPrice: 0, name: '', sku: '', barcode: '', description: '', reorderLevel: undefined });
     }
   }, [editing, open, reset]);
 
@@ -163,6 +165,12 @@ function ProductModal({
               </select>
             </div>
 
+            <div>
+              <label className="label">Alert Reminder (qty)</label>
+              <input type="number" {...register('reorderLevel')} className="input mt-1" min={0} step={1} placeholder="e.g. 5" />
+              <p className="text-[10px] text-slate-400 mt-0.5">Alert fires when stock drops below this</p>
+            </div>
+
             <div className="col-span-2">
               <label className="label">Description</label>
               <textarea {...register('description')} className="input mt-1" rows={2} placeholder="Optional notes" />
@@ -226,7 +234,7 @@ function CsvModal({ open, onClose }: { open: boolean; onClose: () => void }) {
             <Upload size={28} className="mx-auto text-slate-400 mb-2" />
             <p className="text-sm text-slate-600 dark:text-slate-300">Drop a CSV file or click to browse</p>
             <p className="text-xs text-slate-400 mt-1">Required columns: <code>name</code>, <code>costPrice</code>, <code>sellingPrice</code></p>
-            <p className="text-xs text-slate-400">Optional: <code>sku</code>, <code>barcode</code>, <code>unit</code>, <code>stockQty</code>, <code>reorderLevel</code>, <code>description</code></p>
+            <p className="text-xs text-slate-400">Optional: <code>sku</code>, <code>barcode</code>, <code>unit</code>, <code>stockQty</code>, <code>reorderLevel</code> (alert reminder), <code>description</code></p>
             <button
               className="btn-primary mt-3"
               onClick={() => fileRef.current?.click()}
