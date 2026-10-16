@@ -127,10 +127,9 @@ function printSales(sales: Sale[], shop?: ShopInfo) {
     <p>Exported ${new Date().toLocaleString('en-RW')} · ${sales.length} records</p>
     <table><thead><tr><th>Sale #</th><th>Date</th><th>Customer</th><th>Payment</th><th style="text-align:right">Total (RWF)</th><th>Status</th></tr></thead>
     <tbody>${rows}</tbody></table>
+  <script>window.onload=function(){window.focus();window.print();}<\/script>
   </body></html>`);
   w.document.close();
-  w.focus();
-  w.print();
 }
 
 // ── Edit modal ────────────────────────────────────────────────────────────────

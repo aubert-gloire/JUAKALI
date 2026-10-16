@@ -287,10 +287,9 @@ function StatementModal({ customer, credits, onClose }: { customer: Customer; cr
       </p>` : ''}
 
       <div class="footer">Printed on ${new Date().toLocaleDateString('en-RW', { day: 'numeric', month: 'long', year: 'numeric' })}</div>
+    <script>window.onload=function(){window.focus();window.print();}<\/script>
     </body></html>`);
     w.document.close();
-    w.focus();
-    w.print();
   };
 
   return (
@@ -301,8 +300,9 @@ function StatementModal({ customer, credits, onClose }: { customer: Customer; cr
           <div>
             <h2 className="font-semibold text-slate-900 dark:text-slate-100">Statement — {customer.name}</h2>
             <p className="text-xs text-slate-400 mt-0.5">
-              Total spent: RWF {customer.totalSpent.toLocaleString()}
-              {customer.phone && ` · ${customer.phone}`}
+              {customer.phone && `${customer.phone}`}
+              {customer.email && ` · ${customer.email}`}
+              {customer.tin && ` · TIN: ${customer.tin}`}
             </p>
           </div>
           <div className="flex items-center gap-2">
