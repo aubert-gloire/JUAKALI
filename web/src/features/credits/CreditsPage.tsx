@@ -18,7 +18,7 @@ import {
 } from '@/lib/creditsApi';
 import { salesApi, type SaleItem } from '@/lib/salesApi';
 import { Calendar } from 'lucide-react';
-import { exportCSV, printTable, exportPDF } from '@/lib/exportUtils';
+import { exportCSV, printTable, exportPDF, type ShopInfo } from '@/lib/exportUtils';
 import { clsx } from 'clsx';
 
 const CREDIT_COLS = [
@@ -809,6 +809,9 @@ export function CreditsPage() {
   });
   const shopName = shopQ.data?.shop?.name ?? 'JUAKALI STORE';
   const shopPhone = shopQ.data?.shop?.phone ?? '';
+  const shopInfo: ShopInfo | undefined = shopQ.data?.shop
+    ? { name: shopQ.data.shop.name, location: shopQ.data.shop.location, phone: shopQ.data.shop.phone, email: shopQ.data.shop.email, tin: shopQ.data.shop.tin }
+    : undefined;
 
   const deleteCredit = useMutation({
     mutationFn: (id: string) => creditsApi.delete(id),
@@ -867,9 +870,9 @@ export function CreditsPage() {
         </div>
         {accounts.length > 0 && (
           <div className="flex gap-2">
-            <button onClick={() => printTable(accounts, CREDIT_COLS, 'Credit Accounts')} className="flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"><Printer size={13} /> Print</button>
+            <button onClick={() => printTable(accounts, CREDIT_COLS, 'Credit Accounts', shopInfo)} className="flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"><Printer size={13} /> Print</button>
             <button onClick={() => exportCSV(accounts, CREDIT_COLS, 'credit-accounts')} className="flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"><Download size={13} /> CSV</button>
-            <button onClick={() => exportPDF(accounts, CREDIT_COLS, 'Credit Accounts')} className="flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"><FileText size={13} /> PDF</button>
+            <button onClick={() => exportPDF(accounts, CREDIT_COLS, 'Credit Accounts', shopInfo)} className="flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"><FileText size={13} /> PDF</button>
           </div>
         )}
       </div>

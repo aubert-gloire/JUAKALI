@@ -6,7 +6,8 @@ import { z } from 'zod';
 import { toast } from 'sonner';
 import { Receipt, Plus, Trash2, X, AlertCircle, Pencil, TrendingUp, Printer, Download, FileText } from 'lucide-react';
 import type { Expense } from '@/lib/salesApi';
-import { exportCSV, printTable, exportPDF } from '@/lib/exportUtils';
+import { exportCSV, printTable, exportPDF, type ShopInfo } from '@/lib/exportUtils';
+import { settingsApi } from '@/lib/settingsApi';
 
 const EXPENSE_COLS = [
   { label: 'Category',       value: (e: Expense) => e.category },
@@ -330,6 +331,15 @@ export function ExpensesPage() {
     staleTime: 15_000,
   });
 
+  const shopQ = useQuery({
+    queryKey: ['settings', 'shop'],
+    queryFn: () => settingsApi.getShop(),
+    staleTime: 5 * 60_000,
+  });
+  const shopInfo: ShopInfo | undefined = shopQ.data?.shop
+    ? { name: shopQ.data.shop.name, location: shopQ.data.shop.location, phone: shopQ.data.shop.phone, email: shopQ.data.shop.email, tin: shopQ.data.shop.tin }
+    : undefined;
+
   const expenses = data?.expenses ?? [];
   const pages = data?.pages ?? 1;
   const grandTotal = expenses.reduce((s, e) => s + e.amount, 0);
@@ -347,9 +357,9 @@ export function ExpensesPage() {
         </div>
         <div className="flex items-center gap-2">
           {expenses.length > 0 && (<>
-            <button onClick={() => printTable(expenses, EXPENSE_COLS, 'Expenses')} className="flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"><Printer size={13} /> Print</button>
+            <button onClick={() => printTable(expenses, EXPENSE_COLS, 'Expenses', shopInfo)} className="flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"><Printer size={13} /> Print</button>
             <button onClick={() => exportCSV(expenses, EXPENSE_COLS, 'expenses')} className="flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"><Download size={13} /> CSV</button>
-            <button onClick={() => exportPDF(expenses, EXPENSE_COLS, 'Expenses')} className="flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"><FileText size={13} /> PDF</button>
+            <button onClick={() => exportPDF(expenses, EXPENSE_COLS, 'Expenses', shopInfo)} className="flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"><FileText size={13} /> PDF</button>
           </>)}
           <button className="btn-primary gap-1.5" onClick={() => setShowAdd(true)}>
             <Plus size={16} /> Record Expense

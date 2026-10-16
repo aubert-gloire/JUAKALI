@@ -3,7 +3,15 @@ export interface ExportCol<T> {
   value: (row: T) => string | number;
 }
 
-export async function exportPDF<T>(rows: T[], cols: ExportCol<T>[], title: string) {
+export interface ShopInfo {
+  name: string;
+  location?: string;
+  phone?: string;
+  email?: string;
+  tin?: string;
+}
+
+export async function exportPDF<T>(rows: T[], cols: ExportCol<T>[], title: string, shop?: ShopInfo) {
   const { jsPDF } = await import('jspdf');
   const isWide = cols.length > 5;
   const doc = new jsPDF({ orientation: isWide ? 'landscape' : 'portrait', unit: 'mm', format: 'a4' });
@@ -11,9 +19,32 @@ export async function exportPDF<T>(rows: T[], cols: ExportCol<T>[], title: strin
   const pageH = doc.internal.pageSize.getHeight();
   const margin = 14;
   const usableW = pageW - margin * 2;
-  const colW = usableW / cols.length;
   const rowH = 7;
   let y = margin;
+
+  if (shop) {
+    doc.setFontSize(13);
+    doc.setFont('helvetica', 'bold');
+    doc.text(shop.name, margin, y + 6);
+    y += 8;
+
+    doc.setFontSize(7.5);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(90, 90, 90);
+    const meta: string[] = [];
+    if (shop.location) meta.push(shop.location);
+    if (shop.phone) meta.push(shop.phone);
+    if (shop.email) meta.push(shop.email);
+    if (shop.tin) meta.push(`TIN: ${shop.tin}`);
+    if (meta.length) {
+      doc.text(meta.join('  ·  '), margin, y);
+      y += 5;
+    }
+    doc.setDrawColor(220, 220, 220);
+    doc.line(margin, y, margin + usableW, y);
+    y += 5;
+    doc.setTextColor(0, 0, 0);
+  }
 
   doc.setFontSize(14);
   doc.setFont('helvetica', 'bold');
@@ -32,6 +63,7 @@ export async function exportPDF<T>(rows: T[], cols: ExportCol<T>[], title: strin
   doc.setFontSize(7);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(255, 255, 255);
+  const colW = usableW / cols.length;
   cols.forEach((col, i) => {
     const maxC = Math.max(4, Math.floor(colW / 1.8));
     const text = col.label.length > maxC ? col.label.slice(0, maxC - 1) + '…' : col.label;
@@ -76,15 +108,35 @@ export function exportCSV<T>(rows: T[], cols: ExportCol<T>[], filename: string) 
   URL.revokeObjectURL(url);
 }
 
-export function printTable<T>(rows: T[], cols: ExportCol<T>[], title: string) {
+export function printTable<T>(rows: T[], cols: ExportCol<T>[], title: string, shop?: ShopInfo) {
   const thead = cols.map((c) => `<th>${c.label}</th>`).join('');
   const tbody = rows
     .map((r) => `<tr>${cols.map((c) => `<td>${c.value(r)}</td>`).join('')}</tr>`)
     .join('');
+
+  let shopHeader = '';
+  if (shop) {
+    const meta: string[] = [];
+    if (shop.location) meta.push(shop.location);
+    if (shop.phone) meta.push(shop.phone);
+    if (shop.email) meta.push(shop.email);
+    if (shop.tin) meta.push(`TIN: ${shop.tin}`);
+    shopHeader = `
+      <div class="shop-header">
+        <strong>${shop.name}</strong>
+        ${meta.length ? `<span>${meta.join(' · ')}</span>` : ''}
+      </div>
+      <hr/>`;
+  }
+
   const w = window.open('', '_blank');
   if (!w) return;
   w.document.write(`<!doctype html><html><head><title>${title}</title><style>
     body{font-family:sans-serif;font-size:12px;padding:20px}
+    .shop-header{margin-bottom:4px}
+    .shop-header strong{font-size:15px;display:block}
+    .shop-header span{font-size:11px;color:#666}
+    hr{border:none;border-top:1px solid #ccc;margin:6px 0 12px}
     h2{margin-bottom:4px}p{margin:0 0 12px;color:#555}
     table{width:100%;border-collapse:collapse}
     th,td{border:1px solid #ddd;padding:6px 8px;text-align:left}
@@ -92,6 +144,7 @@ export function printTable<T>(rows: T[], cols: ExportCol<T>[], title: string) {
     tr:nth-child(even){background:#fafafa}
     @media print{body{padding:0}}
   </style></head><body>
+    ${shopHeader}
     <h2>${title}</h2>
     <p>Printed ${new Date().toLocaleString('en-RW')} · ${rows.length} records</p>
     <table><thead><tr>${thead}</tr></thead><tbody>${tbody}</tbody></table>

@@ -11,7 +11,8 @@ import {
 } from 'lucide-react';
 import { productsApi, type TopSeller, Product } from '@/lib/inventoryApi';
 import { RestockModal } from '@/components/RestockModal';
-import { exportCSV, printTable, exportPDF } from '@/lib/exportUtils';
+import { exportCSV, printTable, exportPDF, type ShopInfo } from '@/lib/exportUtils';
+import { settingsApi } from '@/lib/settingsApi';
 
 const PRODUCT_COLS = [
   { label: 'Name',           value: (p: Product) => p.name },
@@ -389,6 +390,15 @@ export function ProductsPage() {
 
   const prodQ = useProducts(search, page);
 
+  const shopQ = useQuery({
+    queryKey: ['settings', 'shop'],
+    queryFn: () => settingsApi.getShop(),
+    staleTime: 5 * 60_000,
+  });
+  const shopInfo: ShopInfo | undefined = shopQ.data?.shop
+    ? { name: shopQ.data.shop.name, location: shopQ.data.shop.location, phone: shopQ.data.shop.phone, email: shopQ.data.shop.email, tin: shopQ.data.shop.tin }
+    : undefined;
+
   const openEdit = (p: Product) => { setEditing(p); setModalOpen(true); };
   const openAdd  = () => { setEditing(null); setModalOpen(true); };
   const onSell   = (p: Product) => navigate('/sell', { state: { addProduct: p } });
@@ -409,9 +419,9 @@ export function ProductsPage() {
 
         <div className="flex items-center gap-2 flex-wrap">
           {(prodQ.data?.products.length ?? 0) > 0 && (<>
-            <button onClick={() => printTable(prodQ.data!.products, PRODUCT_COLS, 'Products')} className="flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"><Printer size={13} /> Print</button>
+            <button onClick={() => printTable(prodQ.data!.products, PRODUCT_COLS, 'Products', shopInfo)} className="flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"><Printer size={13} /> Print</button>
             <button onClick={() => exportCSV(prodQ.data!.products, PRODUCT_COLS, 'products')} className="flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"><Download size={13} /> CSV</button>
-            <button onClick={() => exportPDF(prodQ.data!.products, PRODUCT_COLS, 'Products')} className="flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"><FileText size={13} /> PDF</button>
+            <button onClick={() => exportPDF(prodQ.data!.products, PRODUCT_COLS, 'Products', shopInfo)} className="flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"><FileText size={13} /> PDF</button>
           </>)}
           <button onClick={() => setCsvOpen(true)} className="btn-secondary gap-1.5">
             <Upload size={15} /> Import CSV

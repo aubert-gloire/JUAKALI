@@ -6,6 +6,8 @@ export interface IShop extends Document {
   name: string;
   location: string;
   phone?: string;
+  email?: string;
+  tin?: string;
   currency: string;
   timezone: string;
   receiptFooter?: string;
@@ -24,6 +26,8 @@ const ShopSchema = new Schema<IShop>(
     name: { type: String, required: true, trim: true },
     location: { type: String, required: true, trim: true },
     phone: { type: String, trim: true },
+    email: { type: String, trim: true },
+    tin: { type: String, trim: true },
     currency: { type: String, default: 'RWF' },
     timezone: { type: String, default: 'Africa/Kigali' },
     receiptFooter: { type: String },

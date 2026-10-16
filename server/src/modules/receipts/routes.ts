@@ -15,7 +15,7 @@ const esc = (s: unknown) =>
 
 const METHOD_LABEL: Record<string, string> = {
   cash:         'Cash',
-  mobile_money: 'Mobile Money (MoMo)',
+  mobile_money: 'Mobile Money (MoMo/Airtel)',
   card:         'Card',
   credit:       'Credit',
 };
@@ -170,7 +170,8 @@ receiptsRouter.get(
   <div class="card">
     <div class="header">
       <h1>${esc(shop?.name ?? 'JUAKALI STORE')}</h1>
-      <p>${esc(shop?.location ?? '')}${shop?.phone ? ` · ${esc(shop.phone)}` : ''}</p>
+      <p>${esc(shop?.location ?? '')}${shop?.phone ? ` · ${esc(shop.phone)}` : ''}${shop?.email ? ` · ${esc(shop.email)}` : ''}</p>
+      ${shop?.tin ? `<p style="font-size:11px;opacity:.75;margin-top:2px">TIN: ${esc(shop.tin)}</p>` : ''}
     </div>
 
     <div class="meta">

@@ -7,10 +7,11 @@ import { toast } from 'sonner';
 import {
   Plus, ShoppingBag, X, Trash2, CheckCircle, ChevronDown,
   XCircle, Search, Printer, Download, FileText, Package,
-  ChevronLeft, ChevronRight, MoreHorizontal, AlertTriangle, RefreshCw, Phone, Mail,
+  ChevronLeft, ChevronRight, MoreHorizontal, AlertTriangle, RefreshCw, Phone, Mail, Pencil,
 } from 'lucide-react';
 import { purchasesApi, suppliersApi, productsApi, type PurchaseOrder, type Product, type Supplier } from '@/lib/inventoryApi';
-import { exportCSV, printTable, exportPDF } from '@/lib/exportUtils';
+import { exportCSV, printTable, exportPDF, type ShopInfo } from '@/lib/exportUtils';
+import { settingsApi } from '@/lib/settingsApi';
 import { RestockModal } from '@/components/RestockModal';
 import { clsx } from 'clsx';
 
@@ -318,6 +319,129 @@ function CreatePOModal({ open, onClose }: { open: boolean; onClose: () => void }
   );
 }
 
+// ── Edit PO Modal ─────────────────────────────────────────────────────────────
+
+function EditPOModal({ order, open, onClose }: { order: PurchaseOrder; open: boolean; onClose: () => void }) {
+  const qc = useQueryClient();
+
+  const productsQ = useQuery({ queryKey: ['inventory', 'products', '', '', 1], queryFn: () => productsApi.list({ limit: 200 }), staleTime: 30_000 });
+
+  const { register, control, handleSubmit, watch, formState: { errors, isSubmitting }, reset } =
+    useForm<FormData>({
+      resolver: zodResolver(Schema),
+      defaultValues: {
+        supplierName: order.supplierName,
+        supplierId: order.supplierId,
+        lines: order.lines.map((l) => ({ productId: l.productId, qty: l.qty, unitCost: l.unitCost })),
+        notes: order.notes ?? '',
+      },
+    });
+
+  const { fields, append, remove } = useFieldArray({ control, name: 'lines' });
+  const lines = watch('lines');
+  const total = lines.reduce((s, l) => s + (Number(l.qty) || 0) * (Number(l.unitCost) || 0), 0);
+
+  const update = useMutation({
+    mutationFn: (d: FormData) => purchasesApi.update(order._id, {
+      supplierName: d.supplierName,
+      supplierId: d.supplierId,
+      notes: d.notes || undefined,
+      lines: d.lines.map((l) => ({ productId: l.productId, qty: Number(l.qty), unitCost: Number(l.unitCost) })),
+    }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['inventory', 'purchases'] });
+      toast.success('Purchase order updated');
+      onClose();
+      reset();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  if (!open) return null;
+
+  const products = productsQ.data?.products ?? [];
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center">
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative bg-white dark:bg-slate-900 rounded-t-2xl md:rounded-2xl w-full max-w-xl max-h-[92vh] flex flex-col shadow-2xl border border-slate-200 dark:border-slate-700">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-800 flex-shrink-0">
+          <div>
+            <h2 className="font-semibold text-slate-900 dark:text-slate-100">Edit {order.orderNumber}</h2>
+            <p className="text-xs text-slate-400 mt-0.5">Update order details — supplier, items, or notes</p>
+          </div>
+          <button onClick={onClose} className="h-8 w-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+            <X size={16} />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit((d) => update.mutate(d))} className="flex flex-col flex-1 overflow-hidden">
+          <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
+            <div>
+              <label className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Supplier Name</label>
+              <input {...register('supplierName')} className="input mt-1.5" placeholder="Supplier name…" />
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Items *</label>
+                <button type="button" onClick={() => append({ productId: '', qty: 1, unitCost: 0 })} className="text-xs font-medium text-primary-600 dark:text-primary-400 hover:text-primary-700 flex items-center gap-0.5">
+                  <Plus size={12} /> Add item
+                </button>
+              </div>
+              {errors.lines?.root && <p className="text-xs text-red-500 mb-2">{errors.lines.root.message}</p>}
+              <div className="grid grid-cols-[1fr_64px_96px_32px] gap-2 mb-1 px-1">
+                <span className="text-[10px] text-slate-400 uppercase tracking-wider">Product</span>
+                <span className="text-[10px] text-slate-400 uppercase tracking-wider text-center">Qty</span>
+                <span className="text-[10px] text-slate-400 uppercase tracking-wider text-right">Unit cost</span>
+                <span />
+              </div>
+              <div className="space-y-2">
+                {fields.map((field, i) => (
+                  <div key={field.id} className="grid grid-cols-[1fr_64px_96px_32px] gap-2 items-start">
+                    <div className="relative">
+                      <select {...register(`lines.${i}.productId`)} className="input pr-7 appearance-none text-sm">
+                        <option value="">— select —</option>
+                        {products.map((p) => (
+                          <option key={p._id} value={p._id}>{p.name} ({p.sku})</option>
+                        ))}
+                      </select>
+                      <ChevronDown size={11} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                    </div>
+                    <input type="number" {...register(`lines.${i}.qty`)} className="input text-sm text-center" placeholder="1" min={1} />
+                    <input type="number" {...register(`lines.${i}.unitCost`)} className="input text-sm text-right" placeholder="0" min={0} />
+                    <button type="button" className="h-9 flex items-center justify-center text-slate-300 hover:text-red-500 transition-colors disabled:opacity-30" onClick={() => remove(i)} disabled={fields.length === 1}>
+                      <Trash2 size={13} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <label className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Notes</label>
+              <textarea {...register('notes')} className="input mt-1.5 resize-none" rows={2} placeholder="Optional delivery notes…" />
+            </div>
+          </div>
+
+          <div className="flex-shrink-0 border-t border-slate-100 dark:border-slate-800 px-5 py-4">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-sm text-slate-500">Total cost</span>
+              <span className="text-lg font-bold text-slate-900 dark:text-slate-100">RWF {total.toLocaleString()}</span>
+            </div>
+            <div className="flex gap-2">
+              <button type="button" onClick={onClose} className="btn-secondary flex-1">Cancel</button>
+              <button type="submit" className="btn-primary flex-1" disabled={isSubmitting || update.isPending}>
+                {update.isPending ? 'Saving…' : 'Save Changes'}
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 // ── Order card ────────────────────────────────────────────────────────────────
 
 function OrderCard({
@@ -326,6 +450,7 @@ function OrderCard({
   onReceive,
   onCancel,
   onDelete,
+  onEdit,
   receiving,
   cancelling,
 }: {
@@ -334,6 +459,7 @@ function OrderCard({
   onReceive: () => void;
   onCancel: () => void;
   onDelete: () => void;
+  onEdit: () => void;
   receiving: boolean;
   cancelling: boolean;
 }) {
@@ -437,6 +563,13 @@ function OrderCard({
                   {receiving ? 'Receiving…' : 'Mark Received'}
                 </button>
                 <button
+                  onClick={onEdit}
+                  className="flex items-center justify-center gap-1 text-xs font-medium text-slate-500 hover:text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/20 px-3 py-2 rounded-lg transition-colors border border-slate-200 dark:border-slate-700"
+                >
+                  <Pencil size={13} />
+                  Edit
+                </button>
+                <button
                   onClick={onCancel}
                   disabled={receiving || cancelling}
                   className="flex items-center justify-center gap-1 text-xs font-medium text-slate-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-50 px-3 py-2 rounded-lg transition-colors border border-slate-200 dark:border-slate-700"
@@ -471,6 +604,7 @@ type FilterTab = typeof FILTER_TABS[number];
 
 export function PurchasesPage() {
   const [createOpen, setCreateOpen] = useState(false);
+  const [editTarget, setEditTarget] = useState<PurchaseOrder | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<PurchaseOrder | null>(null);
   const [restockTarget, setRestockTarget] = useState<Product | null>(null);
   const [page, setPage] = useState(1);
@@ -485,6 +619,15 @@ export function PurchasesPage() {
     staleTime: 15_000,
     placeholderData: (prev) => prev,
   });
+
+  const shopQ = useQuery({
+    queryKey: ['settings', 'shop'],
+    queryFn: () => settingsApi.getShop(),
+    staleTime: 5 * 60_000,
+  });
+  const shopInfo: ShopInfo | undefined = shopQ.data?.shop
+    ? { name: shopQ.data.shop.name, location: shopQ.data.shop.location, phone: shopQ.data.shop.phone, email: shopQ.data.shop.email, tin: shopQ.data.shop.tin }
+    : undefined;
 
   const lowStockQ = useQuery({
     queryKey: ['inventory', 'lowStock'],
@@ -571,13 +714,13 @@ export function PurchasesPage() {
               </button>
               {exportOpen && (
                 <div className="absolute right-0 top-full mt-1 z-20 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-xl min-w-[130px] py-1">
-                  <button onMouseDown={() => printTable(allOrders, PO_COLS, 'Purchase Orders')} className="w-full text-left flex items-center gap-2 px-3 py-2 text-sm hover:bg-slate-50 dark:hover:bg-slate-700/50">
+                  <button onMouseDown={() => printTable(allOrders, PO_COLS, 'Purchase Orders', shopInfo)} className="w-full text-left flex items-center gap-2 px-3 py-2 text-sm hover:bg-slate-50 dark:hover:bg-slate-700/50">
                     <Printer size={13} className="text-slate-400" /> Print
                   </button>
                   <button onMouseDown={() => exportCSV(allOrders, PO_COLS, 'purchases')} className="w-full text-left flex items-center gap-2 px-3 py-2 text-sm hover:bg-slate-50 dark:hover:bg-slate-700/50">
                     <Download size={13} className="text-slate-400" /> CSV
                   </button>
-                  <button onMouseDown={() => exportPDF(allOrders, PO_COLS, 'Purchase Orders')} className="w-full text-left flex items-center gap-2 px-3 py-2 text-sm hover:bg-slate-50 dark:hover:bg-slate-700/50">
+                  <button onMouseDown={() => exportPDF(allOrders, PO_COLS, 'Purchase Orders', shopInfo)} className="w-full text-left flex items-center gap-2 px-3 py-2 text-sm hover:bg-slate-50 dark:hover:bg-slate-700/50">
                     <FileText size={13} className="text-slate-400" /> PDF
                   </button>
                 </div>
@@ -694,6 +837,7 @@ export function PurchasesPage() {
               onReceive={() => receive.mutate(o._id)}
               onCancel={() => cancel.mutate(o._id)}
               onDelete={() => setDeleteTarget(o)}
+              onEdit={() => setEditTarget(o)}
               receiving={receive.isPending && receive.variables === o._id}
               cancelling={cancel.isPending && cancel.variables === o._id}
             />
@@ -727,6 +871,14 @@ export function PurchasesPage() {
       )}
 
       <CreatePOModal open={createOpen} onClose={() => setCreateOpen(false)} />
+
+      {editTarget && (
+        <EditPOModal
+          order={editTarget}
+          open={!!editTarget}
+          onClose={() => setEditTarget(null)}
+        />
+      )}
 
       {restockTarget && (
         <RestockModal product={restockTarget} onClose={() => setRestockTarget(null)} />

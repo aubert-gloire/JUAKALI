@@ -6,7 +6,8 @@ import { z } from 'zod';
 import { toast } from 'sonner';
 import { Plus, Edit2, Truck, X, Phone, Mail, Trash2, Printer, Download, FileText } from 'lucide-react';
 import { suppliersApi, Supplier } from '@/lib/inventoryApi';
-import { exportCSV, printTable, exportPDF } from '@/lib/exportUtils';
+import { exportCSV, printTable, exportPDF, type ShopInfo } from '@/lib/exportUtils';
+import { settingsApi } from '@/lib/settingsApi';
 
 const SUPPLIER_COLS = [
   { label: 'Name',    value: (s: Supplier) => s.name },
@@ -128,6 +129,15 @@ export function SuppliersPage() {
     staleTime: 30_000,
   });
 
+  const shopQ = useQuery({
+    queryKey: ['settings', 'shop'],
+    queryFn: () => settingsApi.getShop(),
+    staleTime: 5 * 60_000,
+  });
+  const shopInfo: ShopInfo | undefined = shopQ.data?.shop
+    ? { name: shopQ.data.shop.name, location: shopQ.data.shop.location, phone: shopQ.data.shop.phone, email: shopQ.data.shop.email, tin: shopQ.data.shop.tin }
+    : undefined;
+
   const suppliers = data?.suppliers ?? [];
 
   return (
@@ -136,9 +146,9 @@ export function SuppliersPage() {
         <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">Suppliers</h1>
         <div className="flex items-center gap-2">
           {suppliers.length > 0 && (<>
-            <button onClick={() => printTable(suppliers, SUPPLIER_COLS, 'Suppliers')} className="flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"><Printer size={13} /> Print</button>
+            <button onClick={() => printTable(suppliers, SUPPLIER_COLS, 'Suppliers', shopInfo)} className="flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"><Printer size={13} /> Print</button>
             <button onClick={() => exportCSV(suppliers, SUPPLIER_COLS, 'suppliers')} className="flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"><Download size={13} /> CSV</button>
-            <button onClick={() => exportPDF(suppliers, SUPPLIER_COLS, 'Suppliers')} className="flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"><FileText size={13} /> PDF</button>
+            <button onClick={() => exportPDF(suppliers, SUPPLIER_COLS, 'Suppliers', shopInfo)} className="flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"><FileText size={13} /> PDF</button>
           </>)}
           <button onClick={() => { setEditing(null); setModalOpen(true); }} className="btn-primary gap-1.5">
             <Plus size={15} /> Add Supplier

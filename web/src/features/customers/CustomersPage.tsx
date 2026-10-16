@@ -7,12 +7,14 @@ import { toast } from 'sonner';
 import { Users, Plus, Phone, Mail, Search, X, Pencil, Trash2, Printer, Download, FileText, FileBarChart2, AlertCircle } from 'lucide-react';
 import { customersApi, salesApi, type Customer, type CustomerBody, type Sale } from '@/lib/salesApi';
 import { creditsApi, type CreditAccount } from '@/lib/creditsApi';
-import { exportCSV, printTable, exportPDF } from '@/lib/exportUtils';
+import { exportCSV, printTable, exportPDF, type ShopInfo } from '@/lib/exportUtils';
+import { settingsApi } from '@/lib/settingsApi';
 
 const CUSTOMER_COLS = [
   { label: 'Name',        value: (c: Customer) => c.name },
   { label: 'Phone',       value: (c: Customer) => c.phone ?? '' },
   { label: 'Email',       value: (c: Customer) => c.email ?? '' },
+  { label: 'TIN',         value: (c: Customer) => c.tin ?? '' },
   { label: 'Total Spent (RWF)', value: (c: Customer) => c.totalSpent },
   { label: 'Notes',       value: (c: Customer) => c.notes ?? '' },
 ];
@@ -193,6 +195,9 @@ function StatementModal({ customer, credits, onClose }: { customer: Customer; cr
   });
   const allPurchases: Sale[] = (salesQ.data?.sales ?? []).filter((s) => s.status === 'completed');
 
+  const shopQ = useQuery({ queryKey: ['settings', 'shop'], queryFn: () => settingsApi.getShop(), staleTime: 5 * 60_000 });
+  const shop = shopQ.data?.shop;
+
   const printStatement = () => {
     const w = window.open('', '_blank');
     if (!w) return;
@@ -218,9 +223,14 @@ function StatementModal({ customer, credits, onClose }: { customer: Customer; cr
       <td style="text-transform:capitalize">${c.status}</td>
     </tr>`).join('');
 
+    const shopMeta = [shop?.location, shop?.phone, shop?.email].filter(Boolean).join(' · ');
     w.document.write(`<!doctype html><html><head><title>Statement — ${customer.name}</title><style>
       *{box-sizing:border-box}
       body{font-family:Arial,sans-serif;font-size:12px;padding:24px;color:#111;max-width:800px;margin:0 auto}
+      .shop-name{font-size:16px;font-weight:700;margin:0 0 2px}
+      .shop-meta{font-size:11px;color:#555;margin:0 0 2px}
+      .shop-tin{font-size:10px;color:#777;margin:0 0 8px}
+      .divider{border:none;border-top:1px solid #ccc;margin:8px 0 14px}
       h1{font-size:18px;margin:0 0 2px}
       .subtitle{color:#666;margin:0 0 16px;font-size:12px}
       .summary{display:flex;gap:16px;margin-bottom:20px}
@@ -238,8 +248,12 @@ function StatementModal({ customer, credits, onClose }: { customer: Customer; cr
       .footer{margin-top:24px;padding-top:12px;border-top:1px solid #ddd;font-size:10px;color:#999;text-align:right}
       @media print{body{padding:10px}}
     </style></head><body>
+      ${shop?.name ? `<p class="shop-name">${shop.name}</p>` : ''}
+      ${shopMeta ? `<p class="shop-meta">${shopMeta}</p>` : ''}
+      ${shop?.tin ? `<p class="shop-tin">TIN: ${shop.tin}</p>` : ''}
+      ${shop?.name ? '<hr class="divider">' : ''}
       <h1>Customer Statement</h1>
-      <p class="subtitle">${customer.name}${customer.phone ? ' · ' + customer.phone : ''}${customer.email ? ' · ' + customer.email : ''}</p>
+      <p class="subtitle">${customer.name}${customer.phone ? ' · ' + customer.phone : ''}${customer.email ? ' · ' + customer.email : ''}${customer.tin ? ' · TIN: ' + customer.tin : ''}</p>
 
       <div class="summary">
         <div class="box">
@@ -411,6 +425,15 @@ export function CustomersPage() {
     staleTime: 15_000,
   });
 
+  const shopQ = useQuery({
+    queryKey: ['settings', 'shop'],
+    queryFn: () => settingsApi.getShop(),
+    staleTime: 5 * 60_000,
+  });
+  const shopInfo: ShopInfo | undefined = shopQ.data?.shop
+    ? { name: shopQ.data.shop.name, location: shopQ.data.shop.location, phone: shopQ.data.shop.phone, email: shopQ.data.shop.email, tin: shopQ.data.shop.tin }
+    : undefined;
+
   const creditsQ = useQuery({
     queryKey: ['credits', 'list', 'all-active'],
     queryFn: () => creditsApi.list({ status: 'active' }),
@@ -439,9 +462,9 @@ export function CustomersPage() {
         </div>
         <div className="flex items-center gap-2">
           {customers.length > 0 && (<>
-            <button onClick={() => printTable(customers, CUSTOMER_COLS, 'Customers')} className="flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"><Printer size={13} /> Print</button>
+            <button onClick={() => printTable(customers, CUSTOMER_COLS, 'Customers', shopInfo)} className="flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"><Printer size={13} /> Print</button>
             <button onClick={() => exportCSV(customers, CUSTOMER_COLS, 'customers')} className="flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"><Download size={13} /> CSV</button>
-            <button onClick={() => exportPDF(customers, CUSTOMER_COLS, 'Customers')} className="flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"><FileText size={13} /> PDF</button>
+            <button onClick={() => exportPDF(customers, CUSTOMER_COLS, 'Customers', shopInfo)} className="flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"><FileText size={13} /> PDF</button>
           </>)}
           <button className="btn-primary gap-1.5" onClick={() => setModal('add')}>
             <Plus size={16} /> Add Customer

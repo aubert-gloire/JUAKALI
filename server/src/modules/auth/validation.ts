@@ -43,6 +43,8 @@ export const updateShopSchema = z.object({
   name: z.string().min(1).max(100).optional(),
   location: z.string().min(1).max(200).optional(),
   phone: z.string().optional(),
+  email: z.string().email().optional().or(z.literal('')),
+  tin: z.string().max(50).optional(),
   currency: z.string().length(3).optional(),
   timezone: z.string().optional(),
   receiptFooter: z.string().max(300).optional(),

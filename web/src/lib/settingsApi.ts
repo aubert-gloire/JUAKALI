@@ -16,6 +16,8 @@ export interface ShopDetails {
   name: string;
   location: string;
   phone?: string;
+  email?: string;
+  tin?: string;
   currency: string;
   timezone: string;
   receiptFooter?: string;

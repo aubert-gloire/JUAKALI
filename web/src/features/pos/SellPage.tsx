@@ -357,8 +357,8 @@ function PaymentModal({
                     {installmentLines.length > 0 && (
                       <div className="space-y-1 pt-1 border-t border-slate-200 dark:border-slate-700">
                         <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Schedule</p>
-                        {installmentLines.map((inst, i) => (
-                          <div key={i} className="flex justify-between text-[11px]">
+                        {installmentLines.map((inst) => (
+                          <div key={inst.dueDate} className="flex justify-between text-[11px]">
                             <span className="text-slate-500 flex items-center gap-1">
                               <Calendar size={9} className="text-slate-400" />
                               {new Date(inst.dueDate + 'T00:00:00').toLocaleDateString('en-RW', { day: 'numeric', month: 'short', year: 'numeric' })}
@@ -433,9 +433,11 @@ function PaymentModal({
 async function generateReceiptPDF(sale: Sale, shop?: ShopDetails) {
   const { jsPDF } = await import('jspdf');
 
-  const SHOP_NAME    = shop?.name ?? 'JUAKALI STORE';
+  const SHOP_NAME     = shop?.name ?? 'JUAKALI STORE';
   const SHOP_LOCATION = shop?.location ?? 'Kigali, Rwanda';
-  const SHOP_PHONE   = shop?.phone ?? '';
+  const SHOP_PHONE    = shop?.phone ?? '';
+  const SHOP_EMAIL    = shop?.email ?? '';
+  const SHOP_TIN      = shop?.tin ?? '';
 
   const W = 80;          // mm — 80mm thermal width
   const MARGIN = 6;
@@ -463,8 +465,10 @@ async function generateReceiptPDF(sale: Sale, shop?: ShopDetails) {
   doc.setTextColor(100);
   doc.text(SHOP_LOCATION, mid, y, { align: 'center' });
   y += LINE - 1;
-  doc.text(SHOP_PHONE, mid, y, { align: 'center' });
-  y += LINE;
+  const contactLine = [SHOP_PHONE, SHOP_EMAIL].filter(Boolean).join('  ·  ');
+  if (contactLine) { doc.text(contactLine, mid, y, { align: 'center' }); y += LINE - 1; }
+  if (SHOP_TIN) { doc.text(`TIN: ${SHOP_TIN}`, mid, y, { align: 'center' }); y += LINE - 1; }
+  y += 1;
   doc.setTextColor(0);
 
   dash();
@@ -591,9 +595,11 @@ async function generateReceiptPDF(sale: Sale, shop?: ShopDetails) {
 // ── Receipt modal ─────────────────────────────────────────────────────────────
 
 function ReceiptModal({ sale, receiptUrl, shop, onClose }: { sale: Sale; receiptUrl?: string; shop?: ShopDetails; onClose: () => void }) {
-  const shopName = shop?.name ?? 'JUAKALI STORE';
+  const shopName     = shop?.name ?? 'JUAKALI STORE';
   const shopLocation = shop?.location ?? 'Kigali, Rwanda';
-  const shopPhone = shop?.phone ?? '';
+  const shopPhone    = shop?.phone ?? '';
+  const shopEmail    = shop?.email ?? '';
+  const shopTin      = shop?.tin ?? '';
   const [downloading, setDownloading] = useState(false);
   const [copied, setCopied] = useState(false);
 
@@ -612,9 +618,11 @@ function ReceiptModal({ sale, receiptUrl, shop, onClose }: { sale: Sale; receipt
 
   const handleWhatsApp = () => {
     const d = '─────────────────────';
+    const contactParts = [shopPhone && `📞 ${shopPhone}`, shopEmail && `✉ ${shopEmail}`].filter(Boolean).join('  ');
     const lines = [
       `🧾 *${shopName}*`,
-      `📍 ${shopLocation}  📞 ${shopPhone}`,
+      `📍 ${shopLocation}${contactParts ? `\n${contactParts}` : ''}`,
+      shopTin ? `TIN: ${shopTin}` : '',
       d,
       `*Receipt #${sale.saleNumber}*`,
       `📅 ${dateStr}`,
@@ -690,7 +698,10 @@ function ReceiptModal({ sale, receiptUrl, shop, onClose }: { sale: Sale; receipt
             <div className="text-center mb-3">
               <p className="text-[13px] font-bold tracking-widest uppercase">{shopName}</p>
               <p className="text-slate-500 dark:text-slate-400 text-[10px]">{shopLocation}</p>
-              <p className="text-slate-400 text-[10px]">{shopPhone}</p>
+              {(shopPhone || shopEmail) && (
+                <p className="text-slate-400 text-[10px]">{[shopPhone, shopEmail].filter(Boolean).join('  ·  ')}</p>
+              )}
+              {shopTin && <p className="text-slate-400 text-[10px]">TIN: {shopTin}</p>}
             </div>
 
             <div className="border-t border-dashed border-slate-300 dark:border-slate-600 my-2" />
@@ -718,8 +729,8 @@ function ReceiptModal({ sale, receiptUrl, shop, onClose }: { sale: Sale; receipt
 
             {/* Items */}
             <div className="space-y-2">
-              {sale.items.map((item, idx) => (
-                <div key={idx}>
+              {sale.items.map((item) => (
+                <div key={item.productId}>
                   <div className="flex justify-between items-baseline gap-1">
                     <span className="flex-1 text-slate-700 dark:text-slate-200 truncate text-[11px] font-medium">{item.productName}</span>
                     <span className="w-8 text-right text-slate-500 tabular-nums">{item.qty}</span>

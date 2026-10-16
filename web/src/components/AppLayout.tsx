@@ -36,6 +36,7 @@ import { clsx } from 'clsx';
 const BOTTOM_TABS = [
   { to: '/sell',      label: 'nav.sell',      icon: ShoppingCart },
   { to: '/products',  label: 'nav.products',  icon: Package },
+  { to: '/credits',   label: 'nav.credits',   icon: CreditCard },
   { to: '/dashboard', label: 'nav.dashboard', icon: LayoutDashboard },
   { to: '/more',      label: 'nav.more',      icon: MoreHorizontal },
 ];
@@ -370,7 +371,11 @@ export function AppLayout() {
 
         {/* Mobile bottom tabs */}
         <nav className="md:hidden fixed bottom-0 left-0 right-0 border-t border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 flex pb-safe-bottom">
-          {BOTTOM_TABS.map((tab) => (
+          {BOTTOM_TABS.filter((tab) => {
+            if (!role || role === 'owner') return true;
+            const allowed = role === 'cashier' ? CASHIER_ROUTES : MANAGER_ROUTES;
+            return allowed.has(tab.to);
+          }).map((tab) => (
             <NavLink
               key={tab.to}
               to={tab.to}

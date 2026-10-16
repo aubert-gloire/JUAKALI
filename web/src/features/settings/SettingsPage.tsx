@@ -36,6 +36,8 @@ const shopSchema = z.object({
   name: z.string().min(1, 'Name is required'),
   location: z.string().min(1, 'Location is required'),
   phone: z.string().optional(),
+  email: z.string().email('Invalid email').optional().or(z.literal('')),
+  tin: z.string().max(50).optional(),
   currency: z.string().length(3, 'Must be 3-letter code'),
   timezone: z.string().min(1),
   receiptFooter: z.string().max(300).optional(),
@@ -68,6 +70,8 @@ function ShopTab({ role }: { role: string }) {
           name: shop.name,
           location: shop.location,
           phone: shop.phone ?? '',
+          email: shop.email ?? '',
+          tin: shop.tin ?? '',
           currency: shop.currency,
           timezone: shop.timezone,
           receiptFooter: shop.receiptFooter ?? '',
@@ -82,6 +86,8 @@ function ShopTab({ role }: { role: string }) {
       settingsApi.updateShop({
         ...data,
         phone: data.phone || undefined,
+        email: data.email || undefined,
+        tin: data.tin || undefined,
         receiptFooter: data.receiptFooter || undefined,
       } as Partial<Omit<ShopDetails, '_id'>>),
     onSuccess: () => {
@@ -112,6 +118,15 @@ function ShopTab({ role }: { role: string }) {
         <div>
           <label className="label">Phone</label>
           <input {...register('phone')} className="input" disabled={!isOwner} placeholder="+250 7XX XXX XXX" />
+        </div>
+        <div>
+          <label className="label">Email</label>
+          <input {...register('email')} className="input" disabled={!isOwner} placeholder="shop@email.com" />
+          {errors.email && <p className="text-xs text-red-500 mt-1">{errors.email.message}</p>}
+        </div>
+        <div>
+          <label className="label">TIN Number</label>
+          <input {...register('tin')} className="input" disabled={!isOwner} placeholder="e.g. 123456789" />
         </div>
         <div>
           <label className="label">Currency</label>

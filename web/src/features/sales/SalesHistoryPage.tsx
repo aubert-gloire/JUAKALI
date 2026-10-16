@@ -10,7 +10,7 @@ import {
 import { salesApi, type Sale, type PaymentMethod, PAYMENT_LABELS } from '@/lib/salesApi';
 import { settingsApi } from '@/lib/settingsApi';
 import { creditsApi, type CreditAccount } from '@/lib/creditsApi';
-import { exportPDF } from '@/lib/exportUtils';
+import { exportPDF, type ShopInfo } from '@/lib/exportUtils';
 
 const SALE_COLS = [
   { label: 'Sale #',      value: (s: Sale) => s.saleNumber },
@@ -86,7 +86,7 @@ function exportCSV(sales: Sale[]) {
   URL.revokeObjectURL(url);
 }
 
-function printSales(sales: Sale[]) {
+function printSales(sales: Sale[], shop?: ShopInfo) {
   const rows = sales.map((s) => `
     <tr>
       <td>${s.saleNumber}</td>
@@ -96,10 +96,25 @@ function printSales(sales: Sale[]) {
       <td style="text-align:right">${s.total.toLocaleString()}</td>
       <td>${s.status === 'voided' ? 'Deleted' : 'Completed'}</td>
     </tr>`).join('');
+
+  let shopHeader = '';
+  if (shop) {
+    const meta: string[] = [];
+    if (shop.location) meta.push(shop.location);
+    if (shop.phone) meta.push(shop.phone);
+    if (shop.email) meta.push(shop.email);
+    if (shop.tin) meta.push(`TIN: ${shop.tin}`);
+    shopHeader = `<div class="shop-header"><strong>${shop.name}</strong>${meta.length ? `<span>${meta.join(' · ')}</span>` : ''}</div><hr/>`;
+  }
+
   const w = window.open('', '_blank');
   if (!w) return;
   w.document.write(`<!doctype html><html><head><title>Sales Report</title><style>
     body{font-family:sans-serif;font-size:12px;padding:20px}
+    .shop-header{margin-bottom:4px}
+    .shop-header strong{font-size:15px;display:block}
+    .shop-header span{font-size:11px;color:#666}
+    hr{border:none;border-top:1px solid #ccc;margin:6px 0 12px}
     h2{margin-bottom:4px}p{margin:0 0 12px;color:#555}
     table{width:100%;border-collapse:collapse}
     th,td{border:1px solid #ddd;padding:6px 8px;text-align:left}
@@ -107,6 +122,7 @@ function printSales(sales: Sale[]) {
     tr:nth-child(even){background:#fafafa}
     @media print{body{padding:0}}
   </style></head><body>
+    ${shopHeader}
     <h2>Sales Report</h2>
     <p>Exported ${new Date().toLocaleString('en-RW')} · ${sales.length} records</p>
     <table><thead><tr><th>Sale #</th><th>Date</th><th>Customer</th><th>Payment</th><th style="text-align:right">Total (RWF)</th><th>Status</th></tr></thead>
@@ -551,6 +567,15 @@ export function SalesHistoryPage() {
   });
   const shopName = shopQ.data?.shop?.name ?? 'JUAKALI STORE';
   const shopPhone = shopQ.data?.shop?.phone ?? '';
+  const shopInfo: ShopInfo | undefined = shopQ.data?.shop
+    ? {
+        name: shopQ.data.shop.name,
+        location: shopQ.data.shop.location,
+        phone: shopQ.data.shop.phone,
+        email: shopQ.data.shop.email,
+        tin: shopQ.data.shop.tin,
+      }
+    : undefined;
 
   const creditsQ = useQuery({
     queryKey: ['credits', 'list', 'active'],
@@ -596,7 +621,7 @@ export function SalesHistoryPage() {
         {sales.length > 0 && (
           <div className="flex gap-2">
             <button
-              onClick={() => printSales(sales)}
+              onClick={() => printSales(sales, shopInfo)}
               className="flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
             >
               <Printer size={13} /> Print
@@ -608,7 +633,7 @@ export function SalesHistoryPage() {
               <Download size={13} /> CSV
             </button>
             <button
-              onClick={() => exportPDF(sales, SALE_COLS, 'Sales Report')}
+              onClick={() => exportPDF(sales, SALE_COLS, 'Sales Report', shopInfo)}
               className="flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
             >
               <FileText size={13} /> PDF

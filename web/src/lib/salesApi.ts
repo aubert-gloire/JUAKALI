@@ -192,7 +192,7 @@ export const expensesApi = {
 
 export const PAYMENT_LABELS: Record<PaymentMethod, string> = {
   cash: 'Cash',
-  mobile_money: 'Mobile Money',
+  mobile_money: 'MoMo / Airtel',
   card: 'Card',
   credit: 'Credit',
 };
