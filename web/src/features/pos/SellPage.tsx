@@ -608,7 +608,75 @@ function ReceiptModal({ sale, receiptUrl, shop, onClose }: { sale: Sale; receipt
     hour: '2-digit', minute: '2-digit',
   });
 
-  const handlePrint = () => window.print();
+  const handlePrint = () => {
+    const w = window.open('', '_blank', 'width=400,height=700');
+    if (!w) return;
+    const itemRows = sale.items.map((item) => `
+      <tr>
+        <td style="padding:3px 0">${item.productName}</td>
+        <td style="text-align:center;padding:3px 4px">${item.qty}</td>
+        <td style="text-align:right;padding:3px 0">${item.unitPrice.toLocaleString()}</td>
+        <td style="text-align:right;padding:3px 0;font-weight:bold">${item.totalPrice.toLocaleString()}</td>
+      </tr>`).join('');
+    const meta = [shopPhone, shopEmail].filter(Boolean).join('  ·  ');
+    w.document.write(`<!doctype html><html><head><title>Receipt ${sale.saleNumber}</title><style>
+      *{box-sizing:border-box;margin:0;padding:0}
+      body{font-family:'Courier New',monospace;font-size:11px;width:80mm;margin:0 auto;padding:6mm 4mm;line-height:1.5;color:#111}
+      .center{text-align:center}.right{text-align:right}
+      .bold{font-weight:bold}.big{font-size:13px}.small{font-size:9px}
+      .shop-name{font-size:14px;font-weight:bold;text-transform:uppercase;letter-spacing:1px}
+      hr{border:none;border-top:1px dashed #999;margin:6px 0}
+      table{width:100%;border-collapse:collapse}
+      th{font-size:9px;text-transform:uppercase;letter-spacing:.5px;padding:2px 0;border-bottom:1px solid #ccc}
+      .total-row td{font-size:13px;font-weight:bold;padding-top:4px;border-top:1px dashed #999;margin-top:4px}
+      @media print{body{padding:0}}
+    </style></head><body>
+      <div class="center" style="margin-bottom:8px">
+        <p class="shop-name">${shopName}</p>
+        <p class="small" style="color:#555;margin-top:2px">${shopLocation}</p>
+        ${meta ? `<p class="small" style="color:#555">${meta}</p>` : ''}
+        ${shopTin ? `<p class="small" style="color:#555">TIN: ${shopTin}</p>` : ''}
+      </div>
+      <hr/>
+      <div style="display:flex;justify-content:space-between;font-size:10px;color:#555;margin-bottom:2px">
+        <span>Receipt #</span><span style="font-weight:600;color:#111">${sale.saleNumber}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:10px;color:#555;margin-bottom:4px">
+        <span>Date</span><span>${dateStr}</span>
+      </div>
+      <hr/>
+      <table>
+        <thead><tr>
+          <th style="text-align:left">Item</th>
+          <th style="text-align:center">Qty</th>
+          <th style="text-align:right">Price</th>
+          <th style="text-align:right">Total</th>
+        </tr></thead>
+        <tbody>${itemRows}</tbody>
+        ${sale.discountAmount > 0 ? `
+        <tr><td colspan="3" style="text-align:right;font-size:10px;padding-top:4px;color:#555">Subtotal</td><td style="text-align:right;font-size:10px;padding-top:4px;color:#555">${sale.subtotal.toLocaleString()}</td></tr>
+        <tr><td colspan="3" style="text-align:right;font-size:10px;color:#16a34a">Discount</td><td style="text-align:right;font-size:10px;color:#16a34a">−${sale.discountAmount.toLocaleString()}</td></tr>` : ''}
+        <tr class="total-row"><td colspan="3">TOTAL</td><td class="right">RWF ${sale.total.toLocaleString()}</td></tr>
+      </table>
+      <hr/>
+      <div style="font-size:10px;color:#555">
+        <div style="display:flex;justify-content:space-between"><span>Payment</span><span style="font-weight:600;color:#111">${PAYMENT_LABELS[sale.paymentMethod]}</span></div>
+        ${sale.amountTendered != null ? `<div style="display:flex;justify-content:space-between"><span>Tendered</span><span>RWF ${sale.amountTendered.toLocaleString()}</span></div>` : ''}
+        ${sale.change != null && sale.change > 0 ? `<div style="display:flex;justify-content:space-between"><span>Change</span><span>RWF ${sale.change.toLocaleString()}</span></div>` : ''}
+      </div>
+      ${sale.customerName || sale.customerPhone ? `
+      <hr/>
+      <div style="font-size:10px;color:#555">
+        ${sale.customerName ? `<div style="display:flex;justify-content:space-between"><span>Customer</span><span style="font-weight:600;color:#111">${sale.customerName}</span></div>` : ''}
+        ${sale.customerPhone ? `<div style="display:flex;justify-content:space-between"><span>Phone</span><span>${sale.customerPhone}</span></div>` : ''}
+      </div>` : ''}
+      <hr/>
+      <p class="center small" style="color:#777;margin-top:4px">Thank you for your business!</p>
+      <p class="center" style="font-size:8px;color:#bbb;margin-top:2px">Powered by JUAKALI</p>
+    <script>window.onload=function(){window.focus();window.print();}<\/script>
+    </body></html>`);
+    w.document.close();
+  };
 
   const handleDownload = async () => {
     setDownloading(true);
@@ -652,34 +720,11 @@ function ReceiptModal({ sale, receiptUrl, shop, onClose }: { sale: Sale; receipt
 
   return (
     <>
-      <style>{`
-        @media print {
-          body > * { display: none !important; }
-          #receipt-print {
-            display: block !important;
-            position: fixed; inset: 0; z-index: 9999;
-            background: white;
-          }
-          #receipt-print .no-print { display: none !important; }
-          #receipt-print .print-body {
-            width: 80mm;
-            margin: 0 auto;
-            padding: 8mm 5mm;
-            font-family: 'Courier New', monospace;
-            font-size: 11px;
-            line-height: 1.55;
-          }
-        }
-      `}</style>
-
       <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
-        <div className="absolute inset-0 bg-black/50 no-print" onClick={onClose} />
-        <div
-          id="receipt-print"
-          className="relative bg-white dark:bg-slate-900 rounded-t-2xl sm:rounded-2xl w-full sm:max-w-sm shadow-2xl overflow-hidden"
-        >
-          {/* Header bar — screen only */}
-          <div className="no-print flex items-center justify-between px-4 pt-4 pb-2">
+        <div className="absolute inset-0 bg-black/50" onClick={onClose} />
+        <div className="relative bg-white dark:bg-slate-900 rounded-t-2xl sm:rounded-2xl w-full sm:max-w-sm shadow-2xl overflow-hidden">
+          {/* Header bar */}
+          <div className="flex items-center justify-between px-4 pt-4 pb-2">
             <div className="flex items-center gap-2">
               <div className="h-7 w-7 rounded-full bg-green-100 dark:bg-green-900/40 flex items-center justify-center">
                 <CheckCircle size={15} className="text-green-600" />
@@ -812,8 +857,8 @@ function ReceiptModal({ sale, receiptUrl, shop, onClose }: { sale: Sale; receipt
             <p className="text-center text-[9px] text-slate-300 dark:text-slate-600 font-sans mt-0.5">Powered by JUAKALI</p>
           </div>
 
-          {/* ── Action buttons — screen only ─────────────────────────────────── */}
-          <div className="no-print px-4 pb-5 pt-3 grid grid-cols-5 gap-1.5 border-t border-slate-100 dark:border-slate-800">
+          {/* ── Action buttons ───────────────────────────────────────────────── */}
+          <div className="px-4 pb-5 pt-3 grid grid-cols-5 gap-1.5 border-t border-slate-100 dark:border-slate-800">
             <button
               onClick={handleWhatsApp}
               className="flex flex-col items-center gap-1 py-2.5 rounded-xl bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/40 transition-colors"
