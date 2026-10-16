@@ -148,7 +148,7 @@ export function printTable<T>(rows: T[], cols: ExportCol<T>[], title: string, sh
     <h2>${title}</h2>
     <p>Printed ${new Date().toLocaleString('en-RW')} · ${rows.length} records</p>
     <table><thead><tr>${thead}</tr></thead><tbody>${tbody}</tbody></table>
+  <script>window.onload=function(){window.focus();window.print();}<\/script>
   </body></html>`);
-  w.document.write('<script>window.onload=function(){window.focus();window.print();}<\/script>');
   w.document.close();
 }

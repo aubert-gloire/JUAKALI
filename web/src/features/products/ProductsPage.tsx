@@ -419,9 +419,9 @@ export function ProductsPage() {
 
         <div className="flex items-center gap-2 flex-wrap">
           {(prodQ.data?.products.length ?? 0) > 0 && (<>
-            <button onClick={() => printTable(prodQ.data!.products, PRODUCT_COLS, 'Products', shopInfo)} className="flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"><Printer size={13} /> Print</button>
-            <button onClick={() => exportCSV(prodQ.data!.products, PRODUCT_COLS, 'products')} className="flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"><Download size={13} /> CSV</button>
-            <button onClick={() => exportPDF(prodQ.data!.products, PRODUCT_COLS, 'Products', shopInfo)} className="flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"><FileText size={13} /> PDF</button>
+            <button onClick={() => printTable(sortedProducts, PRODUCT_COLS, 'Products', shopInfo)} className="flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"><Printer size={13} /> Print</button>
+            <button onClick={() => exportCSV(sortedProducts, PRODUCT_COLS, 'products')} className="flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"><Download size={13} /> CSV</button>
+            <button onClick={() => exportPDF(sortedProducts, PRODUCT_COLS, 'Products', shopInfo)} className="flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"><FileText size={13} /> PDF</button>
           </>)}
           <button onClick={() => setCsvOpen(true)} className="btn-secondary gap-1.5">
             <Upload size={15} /> Import CSV
