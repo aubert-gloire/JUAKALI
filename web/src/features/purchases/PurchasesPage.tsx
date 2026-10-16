@@ -7,7 +7,7 @@ import { toast } from 'sonner';
 import {
   Plus, ShoppingBag, X, Trash2, CheckCircle, ChevronDown,
   XCircle, Search, Printer, Download, FileText, Package,
-  ChevronLeft, ChevronRight, MoreHorizontal, AlertTriangle, RefreshCw, Phone, Mail, Pencil,
+  ChevronLeft, ChevronRight, MoreHorizontal, AlertTriangle, RefreshCw, Phone, Mail, Pencil, CheckSquare,
 } from 'lucide-react';
 import { purchasesApi, suppliersApi, productsApi, type PurchaseOrder, type Product, type Supplier } from '@/lib/inventoryApi';
 import { exportCSV, printTable, exportPDF, type ShopInfo } from '@/lib/exportUtils';
@@ -453,6 +453,8 @@ function OrderCard({
   onEdit,
   receiving,
   cancelling,
+  selected,
+  onSelect,
 }: {
   order: PurchaseOrder;
   supplier?: Supplier;
@@ -462,17 +464,32 @@ function OrderCard({
   onEdit: () => void;
   receiving: boolean;
   cancelling: boolean;
+  selected: boolean;
+  onSelect: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const cfg = STATUS_CONFIG[order.status] ?? STATUS_CONFIG.draft;
   const canAct = order.status === 'draft' || order.status === 'ordered';
-  const canDelete = order.status === 'draft' || order.status === 'cancelled';
 
   return (
-    <div className={clsx('bg-white dark:bg-slate-800 rounded-xl border-l-4 shadow-sm hover:shadow-md transition-shadow', cfg.border)}>
+    <div className={clsx('bg-white dark:bg-slate-800 rounded-xl border-l-4 shadow-sm hover:shadow-md transition-shadow', cfg.border, selected && 'ring-2 ring-primary-500')}>
       <div className="p-4">
         {/* Top row */}
         <div className="flex items-start justify-between gap-3">
+          <div className="flex items-start gap-2.5 flex-1 min-w-0">
+            <button
+              type="button"
+              onClick={onSelect}
+              className={clsx(
+                'mt-0.5 flex-shrink-0 h-4 w-4 rounded border transition-colors',
+                selected
+                  ? 'bg-primary-600 border-primary-600'
+                  : 'border-slate-300 dark:border-slate-600 hover:border-primary-400',
+              )}
+              aria-label="Select order"
+            >
+              {selected && <CheckCircle size={12} className="text-white" />}
+            </button>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
               <span className="font-mono text-xs font-bold text-slate-500 dark:text-slate-400">{order.orderNumber}</span>
@@ -510,6 +527,7 @@ function OrderCard({
               {' · '}
               {order.lines.length} {order.lines.length === 1 ? 'item' : 'items'}
             </p>
+          </div>
           </div>
           <div className="text-right flex-shrink-0">
             <p className="text-xs text-slate-400">Total</p>
@@ -550,46 +568,42 @@ function OrderCard({
         )}
 
         {/* Actions */}
-        {(canAct || canDelete) && (
-          <div className="mt-3 flex items-center gap-2 pt-3 border-t border-slate-100 dark:border-slate-700/50">
-            {canAct && (
-              <>
-                <button
-                  onClick={onReceive}
-                  disabled={receiving || cancelling}
-                  className="flex-1 flex items-center justify-center gap-1.5 text-xs font-semibold text-white bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 px-3 py-2 rounded-lg transition-colors"
-                >
-                  <CheckCircle size={13} />
-                  {receiving ? 'Receiving…' : 'Mark Received'}
-                </button>
-                <button
-                  onClick={onEdit}
-                  className="flex items-center justify-center gap-1 text-xs font-medium text-slate-500 hover:text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/20 px-3 py-2 rounded-lg transition-colors border border-slate-200 dark:border-slate-700"
-                >
-                  <Pencil size={13} />
-                  Edit
-                </button>
-                <button
-                  onClick={onCancel}
-                  disabled={receiving || cancelling}
-                  className="flex items-center justify-center gap-1 text-xs font-medium text-slate-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-50 px-3 py-2 rounded-lg transition-colors border border-slate-200 dark:border-slate-700"
-                >
-                  <XCircle size={13} />
-                  {cancelling ? 'Cancelling…' : 'Cancel'}
-                </button>
-              </>
-            )}
-            {canDelete && (
+        <div className="mt-3 flex items-center gap-2 pt-3 border-t border-slate-100 dark:border-slate-700/50">
+          {canAct && (
+            <>
               <button
-                onClick={onDelete}
-                className="flex items-center justify-center gap-1 text-xs font-medium text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 px-3 py-2 rounded-lg transition-colors border border-slate-200 dark:border-slate-700"
+                onClick={onReceive}
+                disabled={receiving || cancelling}
+                className="flex-1 flex items-center justify-center gap-1.5 text-xs font-semibold text-white bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 px-3 py-2 rounded-lg transition-colors"
               >
-                <Trash2 size={13} />
-                Delete
+                <CheckCircle size={13} />
+                {receiving ? 'Receiving…' : 'Mark Received'}
               </button>
-            )}
-          </div>
-        )}
+              <button
+                onClick={onCancel}
+                disabled={receiving || cancelling}
+                className="flex items-center justify-center gap-1 text-xs font-medium text-slate-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-50 px-3 py-2 rounded-lg transition-colors border border-slate-200 dark:border-slate-700"
+              >
+                <XCircle size={13} />
+                {cancelling ? 'Cancelling…' : 'Cancel'}
+              </button>
+            </>
+          )}
+          <button
+            onClick={onEdit}
+            className="flex items-center justify-center gap-1 text-xs font-medium text-slate-500 hover:text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/20 px-3 py-2 rounded-lg transition-colors border border-slate-200 dark:border-slate-700"
+          >
+            <Pencil size={13} />
+            Edit
+          </button>
+          <button
+            onClick={onDelete}
+            className="flex items-center justify-center gap-1 text-xs font-medium text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 px-3 py-2 rounded-lg transition-colors border border-slate-200 dark:border-slate-700"
+          >
+            <Trash2 size={13} />
+            Delete
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -611,6 +625,8 @@ export function PurchasesPage() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<FilterTab>('all');
   const [exportOpen, setExportOpen] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const qc = useQueryClient();
 
   const { data, isLoading } = useQuery({
@@ -675,6 +691,26 @@ export function PurchasesPage() {
 
   const allOrders = data?.orders ?? [];
   const sq = search.trim().toLowerCase();
+
+  const toggleSelect = (id: string) =>
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+
+  const bulkDelete = async () => {
+    const ids = [...selectedIds];
+    let failed = 0;
+    for (const id of ids) {
+      try { await purchasesApi.delete(id); } catch { failed++; }
+    }
+    qc.invalidateQueries({ queryKey: ['inventory', 'purchases'] });
+    setSelectedIds(new Set());
+    setBulkDeleteOpen(false);
+    if (failed === 0) toast.success(`${ids.length} order${ids.length > 1 ? 's' : ''} deleted`);
+    else toast.error(`${failed} order${failed > 1 ? 's' : ''} could not be deleted`);
+  };
 
   const orders = allOrders
     .filter((o) => statusFilter === 'all' || o.status === statusFilter)
@@ -810,6 +846,34 @@ export function PurchasesPage() {
         </div>
       )}
 
+      {/* Select All / Bulk delete bar */}
+      {!isLoading && orders.length > 0 && (
+        <div className="flex items-center justify-between gap-3 px-1">
+          <button
+            type="button"
+            onClick={() => {
+              const allSelected = orders.every((o) => selectedIds.has(o._id));
+              if (allSelected) setSelectedIds(new Set());
+              else setSelectedIds(new Set(orders.map((o) => o._id)));
+            }}
+            className="flex items-center gap-2 text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-primary-600 dark:hover:text-primary-400 transition-colors"
+          >
+            <CheckSquare size={14} />
+            {orders.every((o) => selectedIds.has(o._id)) ? 'Deselect All' : 'Select All'}
+          </button>
+          {selectedIds.size > 0 && (
+            <button
+              type="button"
+              onClick={() => setBulkDeleteOpen(true)}
+              className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 border border-red-200 dark:border-red-800 transition-colors"
+            >
+              <Trash2 size={13} />
+              Delete {selectedIds.size} selected
+            </button>
+          )}
+        </div>
+      )}
+
       {/* List */}
       {isLoading ? (
         <div className="flex items-center justify-center h-40">
@@ -840,6 +904,8 @@ export function PurchasesPage() {
               onEdit={() => setEditTarget(o)}
               receiving={receive.isPending && receive.variables === o._id}
               cancelling={cancel.isPending && cancel.variables === o._id}
+              selected={selectedIds.has(o._id)}
+              onSelect={() => toggleSelect(o._id)}
             />
           ))}
         </div>
@@ -882,6 +948,30 @@ export function PurchasesPage() {
 
       {restockTarget && (
         <RestockModal product={restockTarget} onClose={() => setRestockTarget(null)} />
+      )}
+
+      {/* Bulk delete confirm */}
+      {bulkDeleteOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setBulkDeleteOpen(false)} />
+          <div className="relative bg-white dark:bg-slate-900 rounded-2xl w-full max-w-sm shadow-2xl border border-slate-200 dark:border-slate-700 p-5">
+            <div className="flex items-start gap-3 mb-4">
+              <div className="h-10 w-10 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center flex-shrink-0">
+                <Trash2 size={18} className="text-red-500" />
+              </div>
+              <div>
+                <p className="font-semibold text-slate-900 dark:text-slate-100">Delete {selectedIds.size} order{selectedIds.size > 1 ? 's' : ''}?</p>
+                <p className="text-sm text-slate-500 mt-0.5">This action cannot be undone.</p>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <button className="btn-secondary flex-1" onClick={() => setBulkDeleteOpen(false)}>Cancel</button>
+              <button className="btn-danger flex-1" onClick={bulkDelete}>
+                Delete All
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Delete confirm */}

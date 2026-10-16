@@ -13,6 +13,7 @@ export const CompleteSaleSchema = z.object({
   customerId: z.string().optional(),
   customerName: z.string().optional(),
   customerPhone: z.string().optional(),
+  customerTin: z.string().optional(),
   notes: z.string().optional(),
   creditDueDate: z.string().optional(),
   creditUpfrontAmount: z.number().int().min(0).optional(),

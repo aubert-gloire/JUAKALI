@@ -669,6 +669,7 @@ function ReceiptModal({ sale, receiptUrl, shop, onClose }: { sale: Sale; receipt
       <div style="font-size:10px;color:#555">
         ${sale.customerName ? `<div style="display:flex;justify-content:space-between"><span>Customer</span><span style="font-weight:600;color:#111">${sale.customerName}</span></div>` : ''}
         ${sale.customerPhone ? `<div style="display:flex;justify-content:space-between"><span>Phone</span><span>${sale.customerPhone}</span></div>` : ''}
+        ${sale.customerTin ? `<div style="display:flex;justify-content:space-between"><span>TIN</span><span style="font-weight:600">${sale.customerTin}</span></div>` : ''}
       </div>` : ''}
       <hr/>
       <p class="center small" style="color:#777;margin-top:4px">Thank you for your business!</p>
@@ -736,18 +737,18 @@ function ReceiptModal({ sale, receiptUrl, shop, onClose }: { sale: Sale; receipt
             </button>
           </div>
 
+          {/* ── Shop header (pinned, never scrolls) ──────────────────────────── */}
+          <div className="px-6 pt-3 pb-2 font-mono text-center border-b border-dashed border-slate-300 dark:border-slate-600">
+            <p className="text-[13px] font-bold tracking-widest uppercase text-slate-800 dark:text-slate-100">{shopName}</p>
+            {shopLocation && <p className="text-slate-500 dark:text-slate-400 text-[10px]">{shopLocation}</p>}
+            {(shopPhone || shopEmail) && (
+              <p className="text-slate-400 text-[10px]">{[shopPhone, shopEmail].filter(Boolean).join('  ·  ')}</p>
+            )}
+            {shopTin && <p className="text-slate-400 text-[10px] font-semibold">TIN: {shopTin}</p>}
+          </div>
+
           {/* ── Receipt body ─────────────────────────────────────────────────── */}
           <div className="print-body px-6 py-3 font-mono text-[11px] leading-relaxed text-slate-800 dark:text-slate-100 max-h-[55vh] overflow-y-auto">
-
-            {/* Shop header */}
-            <div className="text-center mb-3">
-              <p className="text-[13px] font-bold tracking-widest uppercase">{shopName}</p>
-              <p className="text-slate-500 dark:text-slate-400 text-[10px]">{shopLocation}</p>
-              {(shopPhone || shopEmail) && (
-                <p className="text-slate-400 text-[10px]">{[shopPhone, shopEmail].filter(Boolean).join('  ·  ')}</p>
-              )}
-              {shopTin && <p className="text-slate-400 text-[10px]">TIN: {shopTin}</p>}
-            </div>
 
             <div className="border-t border-dashed border-slate-300 dark:border-slate-600 my-2" />
 
@@ -845,6 +846,12 @@ function ReceiptModal({ sale, receiptUrl, shop, onClose }: { sale: Sale; receipt
                     <div className="flex justify-between text-slate-500">
                       <span>Phone</span>
                       <span>{sale.customerPhone}</span>
+                    </div>
+                  )}
+                  {sale.customerTin && (
+                    <div className="flex justify-between text-slate-500">
+                      <span>TIN</span>
+                      <span className="font-semibold">{sale.customerTin}</span>
                     </div>
                   )}
                 </div>

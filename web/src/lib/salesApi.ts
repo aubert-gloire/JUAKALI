@@ -34,6 +34,7 @@ export interface Sale {
   customerId?: string;
   customerName?: string;
   customerPhone?: string;
+  customerTin?: string;
   receiptUrl?: string;
   status: SaleStatus;
   voidedAt?: string;

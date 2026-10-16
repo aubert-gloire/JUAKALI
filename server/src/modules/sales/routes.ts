@@ -236,12 +236,14 @@ salesRouter.post(
     let resolvedCustomerId: mongoose.Types.ObjectId | undefined;
     let resolvedCustomerName: string | undefined = body.customerName;
     let resolvedCustomerPhone: string | undefined = body.customerPhone;
+    let resolvedCustomerTin: string | undefined = body.customerTin;
 
     if (body.customerId) {
       const found = await Customer.findById(body.customerId).lean();
       resolvedCustomerId = new mongoose.Types.ObjectId(body.customerId);
       resolvedCustomerPhone = found?.phone ?? body.customerPhone;
       resolvedCustomerName = found?.name ?? body.customerName;
+      resolvedCustomerTin = found?.tin ?? body.customerTin;
     } else if (body.customerName && body.customerPhone) {
       // Auto-save: upsert by phone so repeat visits merge into one record
       const upserted = await Customer.findOneAndUpdate(
@@ -275,6 +277,7 @@ salesRouter.post(
       customerId: resolvedCustomerId,
       customerName: resolvedCustomerName,
       customerPhone: resolvedCustomerPhone,
+      customerTin: resolvedCustomerTin,
       receiptUrl,
       cashierId: req.user!.id,
       notes: body.notes,
