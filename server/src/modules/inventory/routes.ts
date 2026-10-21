@@ -617,16 +617,29 @@ inventoryRouter.post(
   }),
 );
 
-// Delete purchase order — draft/cancelled only
+// Delete purchase order — reverses stock if the order was already received
 inventoryRouter.delete(
   '/purchases/:id',
   requireRole('manager'),
   asyncHandler(async (req, res) => {
     const order = await PurchaseOrder.findOne({ _id: req.params.id, ...shopFilter(req) });
     if (!order) throw Errors.notFound('Purchase order');
-    if (!['draft', 'cancelled'].includes(order.status)) {
-      throw Errors.validation('Only draft or cancelled orders can be deleted');
+
+    if (order.status === 'received') {
+      // Reverse the stock additions from each line
+      for (const line of order.lines) {
+        await Product.findOneAndUpdate(
+          { _id: line.productId, shopId: req.tenant!.shopId },
+          { $inc: { stockQty: -line.qty } },
+        );
+      }
+      await StockMovement.deleteMany({
+        shopId: req.tenant!.shopId,
+        reference: order.orderNumber,
+        type: 'purchase',
+      });
     }
+
     await PurchaseOrder.findByIdAndDelete(req.params.id);
     res.json({ ok: true });
   }),

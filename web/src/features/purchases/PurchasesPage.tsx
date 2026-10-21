@@ -627,6 +627,7 @@ export function PurchasesPage() {
   const [exportOpen, setExportOpen] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
   const qc = useQueryClient();
 
   const { data, isLoading } = useQuery({
@@ -701,12 +702,14 @@ export function PurchasesPage() {
 
   const bulkDelete = async () => {
     const ids = [...selectedIds];
+    setBulkDeleting(true);
     let failed = 0;
     for (const id of ids) {
       try { await purchasesApi.delete(id); } catch { failed++; }
     }
-    qc.invalidateQueries({ queryKey: ['inventory', 'purchases'] });
+    await qc.invalidateQueries({ queryKey: ['inventory', 'purchases'] });
     setSelectedIds(new Set());
+    setBulkDeleting(false);
     setBulkDeleteOpen(false);
     if (failed === 0) toast.success(`${ids.length} order${ids.length > 1 ? 's' : ''} deleted`);
     else toast.error(`${failed} order${failed > 1 ? 's' : ''} could not be deleted`);
@@ -965,9 +968,9 @@ export function PurchasesPage() {
               </div>
             </div>
             <div className="flex gap-2">
-              <button className="btn-secondary flex-1" onClick={() => setBulkDeleteOpen(false)}>Cancel</button>
-              <button className="btn-danger flex-1" onClick={bulkDelete}>
-                Delete All
+              <button className="btn-secondary flex-1" disabled={bulkDeleting} onClick={() => setBulkDeleteOpen(false)}>Cancel</button>
+              <button className="btn-danger flex-1" onClick={bulkDelete} disabled={bulkDeleting}>
+                {bulkDeleting ? 'Deleting…' : 'Delete All'}
               </button>
             </div>
           </div>
