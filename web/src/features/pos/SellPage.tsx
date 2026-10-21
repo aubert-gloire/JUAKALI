@@ -12,6 +12,7 @@ import { productsApi, type Product } from '@/lib/inventoryApi';
 import { salesApi, customersApi, type PaymentMethod, type Sale, type Customer, PAYMENT_LABELS } from '@/lib/salesApi';
 import { settingsApi, type ShopDetails } from '@/lib/settingsApi';
 import { creditsApi } from '@/lib/creditsApi';
+import { waPhone } from '@/lib/exportUtils';
 import { clsx } from 'clsx';
 
 // ── Cart types ────────────────────────────────────────────────────────────────
@@ -714,7 +715,7 @@ function ReceiptModal({ sale, receiptUrl, shop, onClose }: { sale: Sale; receipt
     ].filter(Boolean).join('\n');
 
     const waTarget = sale.customerPhone
-      ? `https://wa.me/${sale.customerPhone.replace(/\D/g, '')}?text=${encodeURIComponent(lines)}`
+      ? `https://wa.me/${waPhone(sale.customerPhone)}?text=${encodeURIComponent(lines)}`
       : `https://wa.me/?text=${encodeURIComponent(lines)}`;
     window.open(waTarget, '_blank');
   };

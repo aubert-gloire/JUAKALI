@@ -10,7 +10,7 @@ import {
 import { salesApi, type Sale, type PaymentMethod, PAYMENT_LABELS } from '@/lib/salesApi';
 import { settingsApi } from '@/lib/settingsApi';
 import { creditsApi, type CreditAccount } from '@/lib/creditsApi';
-import { exportPDF, type ShopInfo } from '@/lib/exportUtils';
+import { exportPDF, waPhone, type ShopInfo } from '@/lib/exportUtils';
 
 const SALE_COLS = [
   { label: 'Sale #',      value: (s: Sale) => s.saleNumber },
@@ -306,7 +306,7 @@ function reshareWhatsApp(sale: Sale, shopName: string, shopPhone: string) {
   ].filter(Boolean).join('\n');
 
   const waTarget = sale.customerPhone
-    ? `https://wa.me/${sale.customerPhone.replace(/\D/g, '')}?text=${encodeURIComponent(lines)}`
+    ? `https://wa.me/${waPhone(sale.customerPhone)}?text=${encodeURIComponent(lines)}`
     : `https://wa.me/?text=${encodeURIComponent(lines)}`;
   window.open(waTarget, '_blank');
 }
@@ -445,7 +445,7 @@ function SaleRow({
                 )}
                 {sale.customerPhone && (
                   <a
-                    href={`https://wa.me/${sale.customerPhone.replace(/\D/g, '')}`}
+                    href={`https://wa.me/${waPhone(sale.customerPhone)}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     onClick={(e) => e.stopPropagation()}

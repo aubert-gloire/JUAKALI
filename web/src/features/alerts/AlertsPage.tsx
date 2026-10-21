@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { productsApi } from '@/lib/inventoryApi';
 import { creditsApi } from '@/lib/creditsApi';
+import { waPhone } from '@/lib/exportUtils';
 import { AlertTriangle, Package, CreditCard, ShoppingBag, MessageCircle } from 'lucide-react';
 import { clsx } from 'clsx';
 
@@ -294,7 +295,7 @@ export function AlertsPage() {
                         <td className="px-4 py-3 text-right">
                           {item.customerPhone ? (
                             <a
-                              href={`https://wa.me/${item.customerPhone.replace(/\D/g, '')}?text=${encodeURIComponent(
+                              href={`https://wa.me/${waPhone(item.customerPhone)}?text=${encodeURIComponent(
                                 `Hi ${item.customerName}, this is a reminder for your credit payment.\nSale: ${item.saleNumber}\nAmount due: ${item.amount.toLocaleString()} RWF\nDue: ${new Date(item.dueDate).toLocaleDateString('en-RW', { day: 'numeric', month: 'short', year: 'numeric' })}\n\nPlease contact us to settle your balance.`,
                               )}`}
                               target="_blank"

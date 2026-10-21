@@ -18,7 +18,7 @@ import {
 } from '@/lib/creditsApi';
 import { salesApi, type SaleItem } from '@/lib/salesApi';
 import { Calendar } from 'lucide-react';
-import { exportCSV, printTable, exportPDF, type ShopInfo } from '@/lib/exportUtils';
+import { exportCSV, printTable, exportPDF, waPhone, type ShopInfo } from '@/lib/exportUtils';
 import { clsx } from 'clsx';
 
 const CREDIT_COLS = [
@@ -450,7 +450,7 @@ function AccountSubRow({
                 e.stopPropagation();
                 const contact = shopPhone ? ` | ${shopPhone}` : '';
                 const msg = `Dear ${account.customerName}, you have an outstanding balance of RWF ${account.balance.toLocaleString()} for sale #${account.saleNumber}. Please make payment at your earliest convenience. Thank you! — ${shopName}${contact}`;
-                window.open(`https://wa.me/${account.customerPhone!.replace(/\D/g, '')}?text=${encodeURIComponent(msg)}`, '_blank');
+                window.open(`https://wa.me/${waPhone(account.customerPhone!)}?text=${encodeURIComponent(msg)}`, '_blank');
               }}
               className="p-1.5 rounded-lg bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 hover:bg-green-100 transition-colors"
             >

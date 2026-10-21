@@ -1,3 +1,15 @@
+/**
+ * Normalise a phone number to E.164 digits for wa.me.
+ * Handles Rwandan local format (0788…) and international (+250788… / 250788…).
+ * Falls back to stripping non-digits for numbers that already have a country code.
+ */
+export function waPhone(phone: string): string {
+  const digits = phone.replace(/\D/g, '');
+  if (digits.startsWith('250')) return digits;
+  if (digits.startsWith('0')) return '250' + digits.slice(1);
+  return digits;
+}
+
 export interface ExportCol<T> {
   label: string;
   value: (row: T) => string | number;
