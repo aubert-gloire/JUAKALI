@@ -163,6 +163,16 @@ inventoryRouter.get(
           profit: { $sum: { $subtract: ['$items.totalPrice', '$items.totalCost'] } },
         },
       },
+      {
+        $lookup: {
+          from: 'products',
+          localField: '_id',
+          foreignField: '_id',
+          as: 'product',
+        },
+      },
+      // Exclude products that were hard-deleted or soft-archived (isActive: false)
+      { $match: { 'product.0.isActive': true } },
       { $sort: { revenue: -1 } },
       { $limit: limitNum },
       {

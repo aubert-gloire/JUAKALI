@@ -49,4 +49,6 @@ export const settingsApi = {
     api.delete(`/auth/users/${membershipId}`),
   activate: (membershipId: string) =>
     api.patch(`/auth/users/${membershipId}/activate`, {}),
+  resetShop: (confirmName: string) =>
+    api.post<{ ok: boolean; deleted: Record<string, number> }>('/auth/shop/reset', { confirmName }),
 };

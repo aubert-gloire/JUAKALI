@@ -15,6 +15,10 @@ import {
   updateShopSchema,
 } from './validation';
 import {
+  Sale, Product, Category, Supplier, PurchaseOrder,
+  StockMovement, Expense, CreditAccount, Customer, Counter, AuditLog,
+} from '../../models';
+import {
   registerUser,
   loginUser,
   refreshTokens,
@@ -336,6 +340,55 @@ authRouter.get(
   asyncHandler(async (req, res) => {
     const status = await getSubscriptionStatus(req.tenant!.shopId);
     res.json(status);
+  }),
+);
+
+// POST /api/auth/shop/reset — wipe all operational data for this shop (owner only)
+authRouter.post(
+  '/shop/reset',
+  requireAuth,
+  requireTenant,
+  requireRole('owner'),
+  asyncHandler(async (req, res) => {
+    const { confirmName } = req.body as { confirmName?: string };
+    const shop = await getShopDetails(req.tenant!.shopId);
+    if (!shop) throw Errors.notFound('Shop');
+    if (!confirmName || confirmName.trim() !== shop.name.trim()) {
+      throw Errors.validation('Shop name does not match — reset cancelled.');
+    }
+
+    const sid = req.tenant!.shopId;
+    const [sales, products, categories, suppliers, orders, movements, expenses, credits, customers] =
+      await Promise.all([
+        Sale.deleteMany({ shopId: sid }),
+        Product.deleteMany({ shopId: sid }),
+        Category.deleteMany({ shopId: sid }),
+        Supplier.deleteMany({ shopId: sid }),
+        PurchaseOrder.deleteMany({ shopId: sid }),
+        StockMovement.deleteMany({ shopId: sid }),
+        Expense.deleteMany({ shopId: sid }),
+        CreditAccount.deleteMany({ shopId: sid }),
+        Customer.deleteMany({ shopId: sid }),
+      ]);
+    await Promise.all([
+      Counter.deleteMany({ shopId: sid }),
+      AuditLog.deleteMany({ shopId: sid }),
+    ]);
+
+    res.json({
+      ok: true,
+      deleted: {
+        sales: sales.deletedCount,
+        products: products.deletedCount,
+        categories: categories.deletedCount,
+        suppliers: suppliers.deletedCount,
+        purchaseOrders: orders.deletedCount,
+        stockMovements: movements.deletedCount,
+        expenses: expenses.deletedCount,
+        creditAccounts: credits.deletedCount,
+        customers: customers.deletedCount,
+      },
+    });
   }),
 );
 

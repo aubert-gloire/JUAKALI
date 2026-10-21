@@ -8,7 +8,7 @@ import { useTranslation } from 'react-i18next';
 import i18n from '@/i18n';
 import {
   Building2, Users, User, Shield, Eye, EyeOff,
-  MoreVertical, UserCheck, UserX, Key, Camera,
+  MoreVertical, UserCheck, UserX, Key, Camera, TriangleAlert, Trash2,
 } from 'lucide-react';
 import { settingsApi, type ShopStaff, type ShopDetails } from '@/lib/settingsApi';
 import { useAuth, type AuthUser, type ShopMembership } from '@/hooks/useAuth';
@@ -49,6 +49,7 @@ type ShopFormData = z.infer<typeof shopSchema>;
 
 function ShopTab({ role }: { role: string }) {
   const qc = useQueryClient();
+  const [showReset, setShowReset] = useState(false);
 
   const { data, isLoading } = useQuery({
     queryKey: ['settings', 'shop'],
@@ -178,7 +179,132 @@ function ShopTab({ role }: { role: string }) {
           )}
         </div>
       )}
+
+      {isOwner && (
+        <div className="mt-10 pt-6 border-t border-red-200 dark:border-red-900/40">
+          <div className="flex items-center gap-2 mb-3">
+            <TriangleAlert size={14} className="text-red-500" />
+            <h3 className="text-sm font-semibold text-red-600 dark:text-red-400">Danger Zone</h3>
+          </div>
+          <div className="flex items-start justify-between gap-4 p-4 rounded-xl border border-red-200 dark:border-red-900/40 bg-red-50 dark:bg-red-900/10">
+            <div>
+              <p className="text-sm font-medium text-slate-800 dark:text-slate-200">Reset shop data</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                Permanently delete all sales, products, customers, and history. Shop profile and staff are kept.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowReset(true)}
+              className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 text-xs font-semibold hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
+            >
+              <Trash2 size={12} />
+              Reset
+            </button>
+          </div>
+        </div>
+      )}
+
+      {showReset && shop && (
+        <ResetShopModal shopName={shop.name} onClose={() => setShowReset(false)} />
+      )}
     </form>
+  );
+}
+
+// ── Reset Shop Modal ──────────────────────────────────────────────────────────
+
+function ResetShopModal({ shopName, onClose }: { shopName: string; onClose: () => void }) {
+  const qc = useQueryClient();
+  const [typed, setTyped] = useState('');
+  const [step, setStep] = useState<'warn' | 'confirm'>('warn');
+
+  const mutation = useMutation({
+    mutationFn: () => settingsApi.resetShop(typed),
+    onSuccess: () => {
+      toast.success('Shop data has been reset. Starting fresh!');
+      qc.invalidateQueries();
+      onClose();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-md p-6">
+        {step === 'warn' ? (
+          <>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="flex-shrink-0 w-10 h-10 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
+                <TriangleAlert size={18} className="text-red-600" />
+              </div>
+              <div>
+                <h2 className="text-base font-bold text-slate-900 dark:text-slate-100">Reset Shop Data</h2>
+                <p className="text-xs text-slate-400">This cannot be undone</p>
+              </div>
+            </div>
+            <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
+              This will permanently delete all of your shop's operational data:
+            </p>
+            <ul className="text-sm text-slate-600 dark:text-slate-400 space-y-1 mb-5 pl-4">
+              {['All sales & receipts', 'All products & categories', 'All customers', 'All suppliers & purchase orders', 'Stock movements & expenses', 'Credit accounts'].map((item) => (
+                <li key={item} className="flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-red-400 flex-shrink-0" />
+                  {item}
+                </li>
+              ))}
+            </ul>
+            <p className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-4">
+              Your shop profile, staff accounts and settings will be kept.
+            </p>
+            <div className="flex gap-2 justify-end">
+              <button type="button" className="btn-ghost" onClick={onClose}>Cancel</button>
+              <button
+                type="button"
+                className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white text-sm font-semibold transition-colors"
+                onClick={() => setStep('confirm')}
+              >
+                I understand, continue
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="flex-shrink-0 w-10 h-10 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
+                <Trash2 size={18} className="text-red-600" />
+              </div>
+              <div>
+                <h2 className="text-base font-bold text-slate-900 dark:text-slate-100">Confirm Reset</h2>
+                <p className="text-xs text-slate-400">Type the shop name to confirm</p>
+              </div>
+            </div>
+            <p className="text-sm text-slate-600 dark:text-slate-400 mb-2">
+              Type <span className="font-semibold text-slate-800 dark:text-slate-200">"{shopName}"</span> to confirm:
+            </p>
+            <input
+              className="input mb-4"
+              value={typed}
+              onChange={(e) => setTyped(e.target.value)}
+              placeholder={shopName}
+              autoFocus
+            />
+            <div className="flex gap-2 justify-end">
+              <button type="button" className="btn-ghost" onClick={onClose}>Cancel</button>
+              <button
+                type="button"
+                className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-700 disabled:opacity-40 text-white text-sm font-semibold transition-colors flex items-center gap-2"
+                disabled={typed.trim() !== shopName.trim() || mutation.isPending}
+                onClick={() => mutation.mutate()}
+              >
+                <Trash2 size={14} />
+                {mutation.isPending ? 'Resetting…' : 'Reset Everything'}
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
   );
 }
 
