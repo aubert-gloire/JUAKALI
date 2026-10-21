@@ -7,6 +7,17 @@ import { Errors } from '../../utils/errors';
 import { AccessToken, TOKEN_DURATION } from '../../models/AccessToken';
 import { Shop } from '../../models/Shop';
 import { Membership } from '../../models/Membership';
+import { Sale } from '../../models/Sale';
+import { Product } from '../../models/Product';
+import { Category } from '../../models/Category';
+import { Supplier } from '../../models/Supplier';
+import { PurchaseOrder } from '../../models/PurchaseOrder';
+import { StockMovement } from '../../models/StockMovement';
+import { Expense } from '../../models/Expense';
+import { CreditAccount } from '../../models/CreditAccount';
+import { Customer } from '../../models/Customer';
+import { Counter } from '../../models/Counter';
+import { AuditLog } from '../../models/AuditLog';
 import type { TokenPlan } from '../../models/AccessToken';
 import type { Request, Response, NextFunction } from 'express';
 
@@ -190,12 +201,25 @@ adminRouter.delete(
     const shop = await Shop.findById(req.params.id);
     if (!shop) throw Errors.notFound('Shop');
 
-    await Membership.deleteMany({ shopId: req.params.id });
-    await AccessToken.updateMany(
-      { shopId: req.params.id },
-      { $set: { shopId: null, redeemedAt: null } },
-    );
-    await Shop.findByIdAndDelete(req.params.id);
+    const sid = req.params.id;
+
+    await Promise.all([
+      Sale.deleteMany({ shopId: sid }),
+      Product.deleteMany({ shopId: sid }),
+      Category.deleteMany({ shopId: sid }),
+      Supplier.deleteMany({ shopId: sid }),
+      PurchaseOrder.deleteMany({ shopId: sid }),
+      StockMovement.deleteMany({ shopId: sid }),
+      Expense.deleteMany({ shopId: sid }),
+      CreditAccount.deleteMany({ shopId: sid }),
+      Customer.deleteMany({ shopId: sid }),
+      Counter.deleteMany({ shopId: sid }),
+      AuditLog.deleteMany({ shopId: sid }),
+      Membership.deleteMany({ shopId: sid }),
+      AccessToken.updateMany({ shopId: sid }, { $set: { shopId: null, redeemedAt: null } }),
+    ]);
+
+    await Shop.findByIdAndDelete(sid);
 
     res.json({ ok: true });
   }),

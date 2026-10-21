@@ -163,6 +163,7 @@ function ShopManageModal({
   const [revokeLoading, setRevokeLoading] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [confirmName, setConfirmName] = useState('');
 
   async function handleGrant(e: React.FormEvent) {
     e.preventDefault();
@@ -293,25 +294,33 @@ function ShopManageModal({
             </p>
             {!confirmDelete ? (
               <button
-                onClick={() => setConfirmDelete(true)}
+                onClick={() => { setConfirmDelete(true); setConfirmName(''); }}
                 className="w-full py-2 rounded-lg text-sm font-semibold border border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
               >
                 Delete Shop…
               </button>
             ) : (
               <div className="space-y-2">
-                <p className="text-xs font-semibold text-red-700 dark:text-red-400 text-center">
-                  Are you sure? Type to confirm:
+                <p className="text-xs text-red-700 dark:text-red-400">
+                  Type <strong>{shop.name}</strong> to confirm permanent deletion:
                 </p>
+                <input
+                  type="text"
+                  value={confirmName}
+                  onChange={(e) => setConfirmName(e.target.value)}
+                  placeholder={shop.name}
+                  className="input w-full text-sm"
+                  autoFocus
+                />
                 <button
                   onClick={handleDelete}
-                  disabled={deleteLoading}
-                  className="w-full py-2 rounded-lg text-sm font-bold bg-red-600 hover:bg-red-700 text-white transition-colors disabled:opacity-50"
+                  disabled={deleteLoading || confirmName !== shop.name}
+                  className="w-full py-2 rounded-lg text-sm font-bold bg-red-600 hover:bg-red-700 text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {deleteLoading ? 'Deleting…' : `Yes, delete "${shop.name}"`}
+                  {deleteLoading ? 'Deleting…' : 'Delete Everything'}
                 </button>
                 <button
-                  onClick={() => setConfirmDelete(false)}
+                  onClick={() => { setConfirmDelete(false); setConfirmName(''); }}
                   className="w-full py-1.5 text-xs text-slate-400 hover:text-slate-600 transition-colors"
                 >
                   Cancel
