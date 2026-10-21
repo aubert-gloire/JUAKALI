@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
   XAxis, YAxis, Tooltip, ResponsiveContainer, Legend,
@@ -7,8 +7,11 @@ import {
 import {
   TrendingUp, TrendingDown, DollarSign, ShoppingCart,
   Package, AlertTriangle, CreditCard, Truck,
+  Printer, Download, FileText,
 } from 'lucide-react';
-import { reportsApi, type Period, type PeriodParams } from '@/lib/reportsApi';
+import { reportsApi, type Period, type PeriodParams, type OverviewData, type ProductsData, type CustomersData, type ExpensesData, type PurchasesData } from '@/lib/reportsApi';
+import { exportCSV, printTable, exportPDF, type ShopInfo } from '@/lib/exportUtils';
+import { settingsApi } from '@/lib/settingsApi';
 import { clsx } from 'clsx';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -519,8 +522,132 @@ type TabId = (typeof TABS)[number]['id'];
 export function ReportsPage() {
   const [period, setPeriod] = useState<Period>('month');
   const [tab, setTab] = useState<TabId>('overview');
+  const qc = useQueryClient();
 
   const params: PeriodParams = { period };
+
+  const { data: shopQ } = useQuery({ queryKey: ['settings', 'shop'], queryFn: settingsApi.getShop, staleTime: 5 * 60_000 });
+  const shopInfo: ShopInfo | undefined = shopQ?.shop
+    ? { name: shopQ.shop.name, location: shopQ.shop.location, phone: shopQ.shop.phone, email: shopQ.shop.email, tin: shopQ.shop.tin }
+    : undefined;
+
+  const periodLabel = PERIOD_OPTIONS.find((o) => o.value === period)?.label ?? period;
+
+  const handleExport = (type: 'print' | 'csv' | 'pdf') => {
+    if (tab === 'overview') {
+      const d = qc.getQueryData<OverviewData>(['reports', 'overview', params]);
+      if (!d) return;
+      const rows = [
+        { label: 'Revenue', value: d.revenue },
+        { label: 'Cost of Goods Sold', value: d.cost },
+        { label: 'Gross Profit', value: d.grossProfit },
+        { label: 'Operating Expenses', value: d.expenses },
+        { label: 'Net Profit', value: d.netProfit },
+        { label: 'Transactions', value: d.transactions },
+        { label: 'Avg Sale Value (RWF)', value: d.avgSaleValue },
+        { label: 'Total Discounts (RWF)', value: d.totalDiscount },
+        { label: 'Gross Margin %', value: d.grossMargin },
+      ];
+      const cols = [
+        { label: 'Metric', value: (r: typeof rows[0]) => r.label },
+        { label: 'Value (RWF)', value: (r: typeof rows[0]) => r.value.toLocaleString('en-RW') },
+      ];
+      const title = `P&L Summary — ${periodLabel}`;
+      if (type === 'csv') exportCSV(rows, cols, `pl-summary-${period}`);
+      else if (type === 'pdf') exportPDF(rows, cols, title, shopInfo);
+      else printTable(rows, cols, title, shopInfo);
+
+    } else if (tab === 'products') {
+      const d = qc.getQueryData<ProductsData>(['reports', 'products', params]);
+      if (!d) return;
+      const rows = d.topByRevenue.map((p, i) => ({
+        rank: i + 1,
+        name: p._id.name,
+        sku: p._id.sku,
+        qty: p.qty,
+        revenue: p.revenue,
+        profit: p.profit,
+        margin: p.revenue > 0 ? Math.round((p.profit / p.revenue) * 100) : 0,
+      }));
+      const cols = [
+        { label: '#', value: (r: typeof rows[0]) => r.rank },
+        { label: 'Product', value: (r: typeof rows[0]) => r.name },
+        { label: 'SKU', value: (r: typeof rows[0]) => r.sku },
+        { label: 'Units Sold', value: (r: typeof rows[0]) => r.qty },
+        { label: 'Revenue (RWF)', value: (r: typeof rows[0]) => r.revenue.toLocaleString('en-RW') },
+        { label: 'Profit (RWF)', value: (r: typeof rows[0]) => r.profit.toLocaleString('en-RW') },
+        { label: 'Margin %', value: (r: typeof rows[0]) => r.margin },
+      ];
+      const title = `Top Products — ${periodLabel}`;
+      if (type === 'csv') exportCSV(rows, cols, `top-products-${period}`);
+      else if (type === 'pdf') exportPDF(rows, cols, title, shopInfo);
+      else printTable(rows, cols, title, shopInfo);
+
+    } else if (tab === 'customers') {
+      const d = qc.getQueryData<CustomersData>(['reports', 'customers', params]);
+      if (!d) return;
+      const rows = d.topCustomers.map((c, i) => ({
+        rank: i + 1,
+        name: c._id.name ?? 'Walk-in',
+        purchases: c.transactions,
+        totalSpent: c.totalSpent,
+        avgSale: Math.round(c.avgSale),
+      }));
+      const cols = [
+        { label: '#', value: (r: typeof rows[0]) => r.rank },
+        { label: 'Customer', value: (r: typeof rows[0]) => r.name },
+        { label: 'Purchases', value: (r: typeof rows[0]) => r.purchases },
+        { label: 'Total Spent (RWF)', value: (r: typeof rows[0]) => r.totalSpent.toLocaleString('en-RW') },
+        { label: 'Avg Sale (RWF)', value: (r: typeof rows[0]) => r.avgSale.toLocaleString('en-RW') },
+      ];
+      const title = `Top Customers — ${periodLabel}`;
+      if (type === 'csv') exportCSV(rows, cols, `top-customers-${period}`);
+      else if (type === 'pdf') exportPDF(rows, cols, title, shopInfo);
+      else printTable(rows, cols, title, shopInfo);
+
+    } else if (tab === 'expenses') {
+      const d = qc.getQueryData<ExpensesData>(['reports', 'expenses', params]);
+      if (!d) return;
+      const rows = d.byCategory.map((c) => ({
+        category: c._id,
+        total: c.total,
+        count: c.count,
+        pct: d.grandTotal > 0 ? Math.round((c.total / d.grandTotal) * 100) : 0,
+      }));
+      const cols = [
+        { label: 'Category', value: (r: typeof rows[0]) => r.category },
+        { label: 'Amount (RWF)', value: (r: typeof rows[0]) => r.total.toLocaleString('en-RW') },
+        { label: 'Entries', value: (r: typeof rows[0]) => r.count },
+        { label: '% of Total', value: (r: typeof rows[0]) => r.pct },
+      ];
+      const title = `Expenses by Category — ${periodLabel}`;
+      if (type === 'csv') exportCSV(rows, cols, `expenses-${period}`);
+      else if (type === 'pdf') exportPDF(rows, cols, title, shopInfo);
+      else printTable(rows, cols, title, shopInfo);
+
+    } else if (tab === 'purchases') {
+      const d = qc.getQueryData<PurchasesData>(['reports', 'purchases', params]);
+      if (!d) return;
+      const rows = d.topProducts.map((p) => ({
+        product: p.productName,
+        qty: p.totalQty,
+        cost: p.totalCost,
+        orders: p.orderCount,
+      }));
+      const cols = [
+        { label: 'Product', value: (r: typeof rows[0]) => r.product },
+        { label: 'Qty Received', value: (r: typeof rows[0]) => r.qty },
+        { label: 'Total Cost (RWF)', value: (r: typeof rows[0]) => r.cost.toLocaleString('en-RW') },
+        { label: 'Orders', value: (r: typeof rows[0]) => r.orders },
+      ];
+      const title = `Purchase Orders — ${periodLabel}`;
+      if (type === 'csv') exportCSV(rows, cols, `purchases-${period}`);
+      else if (type === 'pdf') exportPDF(rows, cols, title, shopInfo);
+      else printTable(rows, cols, title, shopInfo);
+    }
+  };
+
+  const btnClass = 'flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors';
 
   return (
     <div className="p-4 md:p-6 max-w-6xl">
@@ -531,22 +658,28 @@ export function ReportsPage() {
           <p className="text-xs text-slate-400 mt-0.5">Business analytics and performance insights</p>
         </div>
 
-        {/* Period picker */}
-        <div className="flex rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
-          {PERIOD_OPTIONS.map((opt) => (
-            <button
-              key={opt.value}
-              onClick={() => setPeriod(opt.value as Period)}
-              className={clsx(
-                'px-3 py-1.5 text-xs font-medium transition-colors',
-                period === opt.value
-                  ? 'bg-primary-600 text-white'
-                  : 'text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800',
-              )}
-            >
-              {opt.label}
-            </button>
-          ))}
+        <div className="flex items-center gap-2 flex-wrap">
+          <button onClick={() => handleExport('print')} className={btnClass}><Printer size={13} /> Print</button>
+          <button onClick={() => handleExport('csv')} className={btnClass}><Download size={13} /> CSV</button>
+          <button onClick={() => handleExport('pdf')} className={btnClass}><FileText size={13} /> PDF</button>
+
+          {/* Period picker */}
+          <div className="flex rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
+            {PERIOD_OPTIONS.map((opt) => (
+              <button
+                key={opt.value}
+                onClick={() => setPeriod(opt.value as Period)}
+                className={clsx(
+                  'px-3 py-1.5 text-xs font-medium transition-colors',
+                  period === opt.value
+                    ? 'bg-primary-600 text-white'
+                    : 'text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800',
+                )}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
