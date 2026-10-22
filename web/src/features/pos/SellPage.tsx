@@ -889,17 +889,6 @@ function ReceiptModal({ sale, receiptUrl, shop, onClose }: { sale: Sale; receipt
               </button>
             )}
             <button
-              onClick={handleDownload}
-              disabled={downloading}
-              className="flex flex-col items-center gap-1 py-2.5 rounded-xl bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors disabled:opacity-60"
-            >
-              {downloading
-                ? <div className="h-4 w-4 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" />
-                : <Download size={16} />
-              }
-              <span className="text-[9px] font-semibold">PDF</span>
-            </button>
-            <button
               onClick={handlePrint}
               className="flex flex-col items-center gap-1 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
             >
