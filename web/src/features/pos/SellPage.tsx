@@ -451,7 +451,22 @@ async function generateReceiptPDF(sale: Sale, shop?: ShopDetails) {
   const W = 80;          // mm — 80mm thermal width
   const MARGIN = 6;
   const LINE = 5;        // mm per text line
-  const doc = new jsPDF({ unit: 'mm', format: [W, 297], orientation: 'portrait' });
+
+  // Pre-calculate page height so jsPDF creates the right size upfront.
+  // doc.internal.pageSize.height is read-only in jsPDF v2 — setting it post-render has no effect.
+  const pageHeight =
+    30 +                                                              // header + shop info
+    (SHOP_TIN ? 4 : 0) +
+    14 +                                                              // receipt meta + dashes
+    10 +                                                              // items header
+    sale.items.length * (LINE - 0.5) +                               // item rows
+    (sale.discountAmount > 0 ? 10 : 0) +                             // discount rows
+    16 +                                                              // total + payment
+    ((sale.amountTendered != null ? 1 : 0) + (sale.change ? 1 : 0)) * 4 +
+    ((sale.customerName || sale.customerPhone) ? 18 : 0) +           // customer block
+    18;                                                               // footer + bottom margin
+
+  const doc = new jsPDF({ unit: 'mm', format: [W, Math.max(pageHeight, 80)], orientation: 'portrait' });
 
   let y = MARGIN;
   const mid = W / 2;
@@ -594,9 +609,6 @@ async function generateReceiptPDF(sale: Sale, shop?: ShopDetails) {
   y += LINE - 1;
   doc.setFontSize(7);
   doc.text('Powered by JUAKALI', mid, y, { align: 'center' });
-
-  // Trim page height to content
-  doc.internal.pageSize.height = y + MARGIN;
 
   doc.save(`receipt-${sale.saleNumber}.pdf`);
 }
@@ -874,10 +886,10 @@ function ReceiptModal({ sale, receiptUrl, shop, onClose }: { sale: Sale; receipt
           </div>
 
           {/* ── Action buttons ───────────────────────────────────────────────── */}
-          <div className="px-4 pb-5 pt-3 grid grid-cols-5 gap-1.5 border-t border-slate-100 dark:border-slate-800">
+          <div className="px-4 pb-5 pt-3 flex gap-1.5 border-t border-slate-100 dark:border-slate-800">
             <button
               onClick={handleWhatsApp}
-              className="flex flex-col items-center gap-1 py-2.5 rounded-xl bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/40 transition-colors"
+              className="flex-1 flex flex-col items-center gap-1 py-2.5 rounded-xl bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/40 transition-colors"
             >
               <MessageCircle size={16} />
               <span className="text-[9px] font-semibold">WhatsApp</span>
@@ -890,7 +902,7 @@ function ReceiptModal({ sale, receiptUrl, shop, onClose }: { sale: Sale; receipt
                     setTimeout(() => setCopied(false), 2000);
                   });
                 }}
-                className="flex flex-col items-center gap-1 py-2.5 rounded-xl bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400 hover:bg-purple-100 dark:hover:bg-purple-900/40 transition-colors"
+                className="flex-1 flex flex-col items-center gap-1 py-2.5 rounded-xl bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400 hover:bg-purple-100 dark:hover:bg-purple-900/40 transition-colors"
               >
                 <Link size={16} />
                 <span className="text-[9px] font-semibold">{copied ? 'Copied!' : 'Copy Link'}</span>
@@ -898,14 +910,22 @@ function ReceiptModal({ sale, receiptUrl, shop, onClose }: { sale: Sale; receipt
             )}
             <button
               onClick={handlePrint}
-              className="flex flex-col items-center gap-1 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+              className="flex-1 flex flex-col items-center gap-1 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
             >
               <Printer size={16} />
               <span className="text-[9px] font-semibold">Print</span>
             </button>
             <button
+              onClick={handleDownload}
+              disabled={downloading}
+              className="flex-1 flex flex-col items-center gap-1 py-2.5 rounded-xl bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors disabled:opacity-50"
+            >
+              <Download size={16} />
+              <span className="text-[9px] font-semibold">{downloading ? '…' : 'PDF'}</span>
+            </button>
+            <button
               onClick={onClose}
-              className="flex flex-col items-center gap-1 py-2.5 rounded-xl bg-primary-600 text-white hover:bg-primary-700 transition-colors"
+              className="flex-1 flex flex-col items-center gap-1 py-2.5 rounded-xl bg-primary-600 text-white hover:bg-primary-700 transition-colors"
             >
               <CheckCircle2 size={16} />
               <span className="text-[9px] font-semibold">Done</span>
