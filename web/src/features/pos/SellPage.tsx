@@ -6,7 +6,7 @@ import {
   Search, X, Plus, Minus, Trash2, ShoppingCart,
   Banknote, Smartphone, CreditCard, AlertCircle, CheckCircle2, Tag,
   Printer, MessageCircle, CheckCircle, Download, Link, Phone, UserPlus,
-  Calendar,
+  Calendar, Lock,
 } from 'lucide-react';
 import { productsApi, type Product } from '@/lib/inventoryApi';
 import { salesApi, customersApi, type PaymentMethod, type Sale, type Customer, PAYMENT_LABELS } from '@/lib/salesApi';
@@ -20,6 +20,7 @@ import { clsx } from 'clsx';
 interface CartLine {
   product: Product;
   qty: number;
+  customPrice?: number;
 }
 
 // ── Payment icons ─────────────────────────────────────────────────────────────
@@ -65,9 +66,16 @@ function ProductCard({
       <p className="text-[10px] text-slate-400 mt-1 font-mono">{product.sku}</p>
 
       <div className="flex items-center justify-between mt-2">
-        <span className={clsx('text-sm font-bold', outOfStock ? 'text-slate-400' : 'text-primary-600 dark:text-primary-400')}>
-          {product.sellingPrice.toLocaleString()}
-        </span>
+        <div>
+          <span className={clsx('text-sm font-bold', outOfStock ? 'text-slate-400' : 'text-primary-600 dark:text-primary-400')}>
+            {product.sellingPrice.toLocaleString()}
+          </span>
+          {product.minSellingPrice != null && product.minSellingPrice > 0 && (
+            <span className="ml-1.5 inline-flex items-center gap-0.5 text-[9px] font-semibold text-amber-600 dark:text-amber-400">
+              <Lock size={8} /> min {product.minSellingPrice.toLocaleString()}
+            </span>
+          )}
+        </div>
         {!outOfStock && (
           <span className={clsx(
             'text-[10px] font-medium px-1.5 py-0.5 rounded-full',
@@ -1007,8 +1015,11 @@ export function SellPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Cart calculations
-  const subtotal = useMemo(() => cart.reduce((s, l) => s + l.product.sellingPrice * l.qty, 0), [cart]);
+  // Cart calculations — use customPrice if set, otherwise default sellingPrice
+  const subtotal = useMemo(
+    () => cart.reduce((s, l) => s + (l.customPrice ?? l.product.sellingPrice) * l.qty, 0),
+    [cart],
+  );
   const discountAmt = Math.min(discount, subtotal);
   const total = subtotal - discountAmt;
 
@@ -1053,11 +1064,29 @@ export function SellPage() {
   const removeFromCart = (productId: string) =>
     setCart((prev) => prev.filter((l) => l.product._id !== productId));
 
+  const updatePrice = (productId: string, price: number | undefined) => {
+    setCart((prev) =>
+      prev.map((l) => {
+        if (l.product._id !== productId) return l;
+        const min = l.product.minSellingPrice;
+        if (price != null && min != null && price < min) {
+          toast.error(`Minimum price for ${l.product.name} is ${min.toLocaleString()} RWF`);
+          return l;
+        }
+        return { ...l, customPrice: price };
+      }),
+    );
+  };
+
   const handleConfirmPayment = (tendered?: number, creditDueDate?: string, creditUpfront?: number, installments?: InstallmentLine[]) => {
     const custName = selectedCustomer?.name;
     const custPhone = selectedCustomer?.phone;
     completeSale.mutate({
-      items: cart.map((l) => ({ productId: l.product._id, qty: l.qty })),
+      items: cart.map((l) => ({
+        productId: l.product._id,
+        qty: l.qty,
+        ...(l.customPrice != null ? { unitPrice: l.customPrice } : {}),
+      })),
       discountAmount: discountAmt,
       paymentMethod,
       amountTendered: tendered,
@@ -1099,48 +1128,91 @@ export function SellPage() {
             <p className="text-xs">Add products to start a sale</p>
           </div>
         ) : (
-          cart.map((line) => (
-            <div
-              key={line.product._id}
-              className="flex items-center gap-2 rounded-lg bg-slate-50 dark:bg-slate-900/50 px-3 py-2"
-            >
-              <div className="flex-1 min-w-0">
-                <p className="text-xs font-medium text-slate-800 dark:text-slate-200 truncate">
-                  {line.product.name}
-                </p>
-                <p className="text-[10px] text-slate-400">
-                  {line.product.sellingPrice.toLocaleString()} × {line.qty} ={' '}
-                  <span className="font-semibold text-slate-600 dark:text-slate-300">
-                    {(line.product.sellingPrice * line.qty).toLocaleString()}
-                  </span>
-                </p>
-              </div>
+          cart.map((line) => {
+            const effectivePrice = line.customPrice ?? line.product.sellingPrice;
+            const hasMinPrice = line.product.minSellingPrice != null && line.product.minSellingPrice > 0;
+            const isPriceOverridden = line.customPrice != null && line.customPrice !== line.product.sellingPrice;
+            return (
+              <div
+                key={line.product._id}
+                className="rounded-lg bg-slate-50 dark:bg-slate-900/50 px-3 py-2 space-y-1.5"
+              >
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-medium text-slate-800 dark:text-slate-200 truncate">
+                      {line.product.name}
+                    </p>
+                    <p className="text-[10px] text-slate-400 tabular-nums">
+                      {effectivePrice.toLocaleString()} × {line.qty} ={' '}
+                      <span className="font-semibold text-slate-600 dark:text-slate-300">
+                        {(effectivePrice * line.qty).toLocaleString()}
+                      </span>
+                      {isPriceOverridden && (
+                        <span className="ml-1 text-amber-500">(negotiated)</span>
+                      )}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => updateQty(line.product._id, -1)}
+                      className="w-6 h-6 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center hover:bg-primary-100 dark:hover:bg-primary-900/30 transition-colors"
+                    >
+                      <Minus size={12} />
+                    </button>
+                    <span className="w-6 text-center text-xs font-bold tabular-nums">
+                      {line.qty}
+                    </span>
+                    <button
+                      onClick={() => updateQty(line.product._id, 1)}
+                      className="w-6 h-6 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center hover:bg-primary-100 dark:hover:bg-primary-900/30 transition-colors"
+                    >
+                      <Plus size={12} />
+                    </button>
+                    <button
+                      onClick={() => removeFromCart(line.product._id)}
+                      className="w-6 h-6 rounded-full flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors ml-0.5"
+                    >
+                      <Trash2 size={12} />
+                    </button>
+                  </div>
+                </div>
 
-              <div className="flex items-center gap-1">
-                <button
-                  onClick={() => updateQty(line.product._id, -1)}
-                  className="w-6 h-6 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center hover:bg-primary-100 dark:hover:bg-primary-900/30 transition-colors"
-                >
-                  <Minus size={12} />
-                </button>
-                <span className="w-6 text-center text-xs font-bold tabular-nums">
-                  {line.qty}
-                </span>
-                <button
-                  onClick={() => updateQty(line.product._id, 1)}
-                  className="w-6 h-6 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center hover:bg-primary-100 dark:hover:bg-primary-900/30 transition-colors"
-                >
-                  <Plus size={12} />
-                </button>
-                <button
-                  onClick={() => removeFromCart(line.product._id)}
-                  className="w-6 h-6 rounded-full flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors ml-0.5"
-                >
-                  <Trash2 size={12} />
-                </button>
+                {/* Price override row */}
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] text-slate-400 flex-shrink-0">Price:</span>
+                  <input
+                    type="number"
+                    min={line.product.minSellingPrice ?? 0}
+                    step={1}
+                    value={line.customPrice ?? line.product.sellingPrice}
+                    onChange={(e) => {
+                      const val = parseInt(e.target.value, 10);
+                      updatePrice(line.product._id, isNaN(val) ? undefined : val);
+                    }}
+                    className={clsx(
+                      'w-28 text-xs font-semibold px-2 py-1 rounded-md border focus:outline-none focus:ring-1',
+                      isPriceOverridden
+                        ? 'border-amber-300 bg-amber-50 dark:bg-amber-900/20 dark:border-amber-700 focus:ring-amber-400'
+                        : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 focus:ring-primary-400',
+                    )}
+                  />
+                  {hasMinPrice && (
+                    <span className="inline-flex items-center gap-0.5 text-[9px] text-amber-600 dark:text-amber-400 font-medium">
+                      <Lock size={8} /> min {line.product.minSellingPrice!.toLocaleString()}
+                    </span>
+                  )}
+                  {isPriceOverridden && (
+                    <button
+                      onClick={() => updatePrice(line.product._id, undefined)}
+                      className="text-[9px] text-slate-400 hover:text-slate-600 underline"
+                    >
+                      reset
+                    </button>
+                  )}
+                </div>
               </div>
-            </div>
-          ))
+            );
+          })
         )}
       </div>
 

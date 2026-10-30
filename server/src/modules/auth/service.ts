@@ -289,7 +289,7 @@ export async function updateShop(shopId: Types.ObjectId, data: Partial<import('.
 
 export async function updateStaffRole(
   membershipId: string,
-  role: 'manager' | 'cashier',
+  role: 'manager' | 'cashier' | 'accountant',
   shopId: Types.ObjectId,
   requestingUserId: string,
 ) {

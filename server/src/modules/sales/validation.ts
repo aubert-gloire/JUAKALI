@@ -3,6 +3,7 @@ import { z } from 'zod';
 export const SaleItemSchema = z.object({
   productId: z.string().min(1),
   qty: z.number().int().min(1),
+  unitPrice: z.number().int().min(0).optional(),
 });
 
 export const CompleteSaleSchema = z.object({

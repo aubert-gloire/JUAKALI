@@ -10,6 +10,7 @@ export interface IProduct extends Document {
   unit: string;
   costPrice: number;
   sellingPrice: number;
+  minSellingPrice?: number;
   stockQty: number;
   reorderLevel: number;
   isActive: boolean;
@@ -28,6 +29,7 @@ const ProductSchema = new Schema<IProduct>(
     unit: { type: String, default: 'pcs' },
     costPrice: { type: Number, required: true, min: 0 },
     sellingPrice: { type: Number, required: true, min: 0 },
+    minSellingPrice: { type: Number, min: 0 },
     stockQty: { type: Number, default: 0 },
     reorderLevel: { type: Number, default: 5 },
     isActive: { type: Boolean, default: true },

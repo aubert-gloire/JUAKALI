@@ -17,15 +17,23 @@ import { clsx } from 'clsx';
 // ── Role badge ────────────────────────────────────────────────────────────────
 
 const ROLE_COLORS = {
-  owner:   'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400',
-  manager: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
-  cashier: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400',
+  owner:      'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400',
+  manager:    'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
+  cashier:    'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400',
+  accountant: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
+};
+
+const ROLE_LABELS: Record<string, string> = {
+  owner:      'Owner',
+  manager:    'Manager',
+  cashier:    'Sales Person',
+  accountant: 'Accountant',
 };
 
 function RoleBadge({ role }: { role: string }) {
   return (
-    <span className={clsx('inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full capitalize', ROLE_COLORS[role as keyof typeof ROLE_COLORS] ?? ROLE_COLORS.cashier)}>
-      {role}
+    <span className={clsx('inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full', ROLE_COLORS[role as keyof typeof ROLE_COLORS] ?? ROLE_COLORS.cashier)}>
+      {ROLE_LABELS[role] ?? role}
     </span>
   );
 }
@@ -314,7 +322,7 @@ const inviteSchema = z.object({
   name: z.string().min(1),
   email: z.string().email(),
   phone: z.string().optional(),
-  role: z.enum(['manager', 'cashier']),
+  role: z.enum(['manager', 'cashier', 'accountant']),
   tempPassword: z.string().min(10, 'Password must be at least 10 characters'),
 });
 
@@ -441,8 +449,9 @@ function InviteModal({ onClose }: { onClose: () => void }) {
           <div>
             <label className="label">Role</label>
             <select {...register('role')} className="input">
-              <option value="cashier">Cashier</option>
-              <option value="manager">Manager</option>
+              <option value="cashier">Sales Person — can sell products only</option>
+              <option value="accountant">Accountant — view sales & expenses (read-only)</option>
+              <option value="manager">Manager — manage inventory and see reports</option>
             </select>
           </div>
           <div>
@@ -536,7 +545,9 @@ function ResetPasswordModal({ member, onClose }: { member: ShopStaff; onClose: (
 
 function ChangeRoleModal({ member, onClose }: { member: ShopStaff; onClose: () => void }) {
   const qc = useQueryClient();
-  const [role, setRole] = useState<'manager' | 'cashier'>(member.role === 'owner' ? 'manager' : member.role);
+  const [role, setRole] = useState<'manager' | 'cashier' | 'accountant'>(
+    member.role === 'owner' ? 'manager' : (member.role as 'manager' | 'cashier' | 'accountant'),
+  );
 
   const mutation = useMutation({
     mutationFn: () => settingsApi.updateRole(member.membershipId, role),
@@ -556,11 +567,12 @@ function ChangeRoleModal({ member, onClose }: { member: ShopStaff; onClose: () =
         <p className="text-sm text-slate-500 mb-4">{member.name} · Current: <RoleBadge role={member.role} /></p>
         <select
           value={role}
-          onChange={(e) => setRole(e.target.value as 'manager' | 'cashier')}
+          onChange={(e) => setRole(e.target.value as 'manager' | 'cashier' | 'accountant')}
           className="input mb-5"
         >
-          <option value="cashier">Cashier — can sell, view own sales</option>
-          <option value="manager">Manager — can manage inventory and see reports</option>
+          <option value="cashier">Sales Person — can sell products only</option>
+          <option value="accountant">Accountant — view sales & expenses (read-only)</option>
+          <option value="manager">Manager — manage inventory and see reports</option>
         </select>
         <div className="flex gap-2">
           <button className="btn-ghost flex-1" onClick={onClose}>Cancel</button>

@@ -5,16 +5,22 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useRegister, useAuth } from '@/hooks/useAuth';
 import { clsx } from 'clsx';
-import { Package, TrendingUp, ShieldCheck, ArrowLeft } from 'lucide-react';
+import { Package, TrendingUp, ShieldCheck, ArrowLeft, Eye, EyeOff } from 'lucide-react';
 import { JkLogo } from '@/components/JkLogo';
 
 // ── Schemas ───────────────────────────────────────────────────────────────────
 
-const step1Schema = z.object({
-  name: z.string().min(2, 'Name must be at least 2 characters'),
-  email: z.string().email('Enter a valid email'),
-  password: z.string().min(8, 'Password must be at least 8 characters'),
-});
+const step1Schema = z
+  .object({
+    name: z.string().min(2, 'Name must be at least 2 characters'),
+    email: z.string().email('Enter a valid email'),
+    password: z.string().min(8, 'Password must be at least 8 characters'),
+    confirmPassword: z.string().min(1, 'Please confirm your password'),
+  })
+  .refine((d) => d.password === d.confirmPassword, {
+    message: 'Passwords do not match',
+    path: ['confirmPassword'],
+  });
 
 const step2Schema = z.object({
   shopName: z.string().min(2, 'Shop name is required'),
@@ -107,6 +113,8 @@ export function SignupPage() {
 
   const [step, setStep] = useState<1 | 2>(1);
   const [step1Data, setStep1Data] = useState<Step1Form | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
 
   const form1 = useForm<Step1Form>({ resolver: zodResolver(step1Schema) });
   const form2 = useForm<Step2Form>({ resolver: zodResolver(step2Schema) });
@@ -129,7 +137,8 @@ export function SignupPage() {
   const onStep2 = async (data: Step2Form) => {
     if (!step1Data) return;
     try {
-      await register_.mutateAsync({ ...step1Data, ...data });
+      const { confirmPassword: _, ...step1Payload } = step1Data;
+      await register_.mutateAsync({ ...step1Payload, ...data });
       navigate('/dashboard', { replace: true });
     } catch (err) {
       const msg = (err as Error).message ?? 'Something went wrong';
@@ -194,16 +203,53 @@ export function SignupPage() {
 
                 <div>
                   <label htmlFor="signup-password" className="label mb-1">Password</label>
-                  <input
-                    id="signup-password"
-                    type="password"
-                    autoComplete="new-password"
-                    placeholder="Min. 8 characters"
-                    className={clsx('input', form1.formState.errors.password && 'border-red-500')}
-                    {...form1.register('password')}
-                  />
+                  <div className="relative">
+                    <input
+                      id="signup-password"
+                      type={showPassword ? 'text' : 'password'}
+                      autoComplete="new-password"
+                      placeholder="Min. 8 characters"
+                      className={clsx('input pr-10', form1.formState.errors.password && 'border-red-500')}
+                      {...form1.register('password')}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword((v) => !v)}
+                      className="absolute inset-y-0 right-0 flex items-center px-3 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+                      tabIndex={-1}
+                      aria-label={showPassword ? 'Hide password' : 'Show password'}
+                    >
+                      {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
                   {form1.formState.errors.password && (
                     <p className="mt-1 text-xs text-red-600">{form1.formState.errors.password.message}</p>
+                  )}
+                </div>
+
+                <div>
+                  <label htmlFor="signup-confirm-password" className="label mb-1">Confirm password</label>
+                  <div className="relative">
+                    <input
+                      id="signup-confirm-password"
+                      type={showConfirm ? 'text' : 'password'}
+                      autoComplete="new-password"
+                      placeholder="Re-enter your password"
+                      className={clsx('input pr-10', form1.formState.errors.confirmPassword && 'border-red-500')}
+                      {...form1.register('confirmPassword')}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirm((v) => !v)}
+                      className="absolute inset-y-0 right-0 flex items-center px-3 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+                      tabIndex={-1}
+                      aria-label={showConfirm ? 'Hide password' : 'Show password'}
+                    >
+                      {showConfirm ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
+                  {form1.formState.errors.confirmPassword && (
+                    <p className="mt-1 text-xs text-red-600">{form1.formState.errors.confirmPassword.message}</p>
                   )}
                 </div>
 

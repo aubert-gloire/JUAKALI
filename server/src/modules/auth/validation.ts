@@ -26,7 +26,7 @@ export const inviteUserSchema = z.object({
   name: z.string().min(1).max(100),
   email: z.string().email().toLowerCase(),
   phone: z.string().optional(),
-  role: z.enum(['manager', 'cashier']),
+  role: z.enum(['manager', 'cashier', 'accountant']),
   tempPassword: z.string().min(10, 'Temporary password must be at least 10 characters'),
 });
 
@@ -36,7 +36,7 @@ export const resetStaffPasswordSchema = z.object({
 });
 
 export const updateRoleSchema = z.object({
-  role: z.enum(['manager', 'cashier']),
+  role: z.enum(['manager', 'cashier', 'accountant']),
 });
 
 export const updateShopSchema = z.object({

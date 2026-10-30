@@ -1,6 +1,6 @@
 import mongoose, { Schema, Document, Types } from 'mongoose';
 
-export type MembershipRole = 'owner' | 'manager' | 'cashier';
+export type MembershipRole = 'owner' | 'manager' | 'cashier' | 'accountant';
 
 export interface IMembership extends Document {
   _id: Types.ObjectId;
@@ -17,7 +17,7 @@ const MembershipSchema = new Schema<IMembership>(
     userId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     organizationId: { type: Schema.Types.ObjectId, ref: 'Organization', required: true },
     shopId: { type: Schema.Types.ObjectId, ref: 'Shop', required: true },
-    role: { type: String, enum: ['owner', 'manager', 'cashier'], required: true },
+    role: { type: String, enum: ['owner', 'manager', 'cashier', 'accountant'], required: true },
   },
   { timestamps: true },
 );

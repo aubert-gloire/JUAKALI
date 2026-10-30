@@ -41,8 +41,9 @@ const BOTTOM_TABS = [
   { to: '/more',      label: 'nav.more',      icon: MoreHorizontal },
 ];
 
-// Routes each role can see — cashier gets the essentials, manager gets sales ops, owner gets everything
+// Routes each role can see
 const CASHIER_ROUTES = new Set(['/sell', '/products', '/dashboard', '/more']);
+const ACCOUNTANT_ROUTES = new Set(['/dashboard', '/sales-history', '/expenses', '/reports', '/more']);
 const MANAGER_ROUTES = new Set([
   '/sell', '/products', '/dashboard', '/more',
   '/sales-history', '/credits', '/customers', '/expenses', '/alerts',
@@ -84,7 +85,10 @@ const NAV_GROUPS = [
 
 function filterNavByRole(role?: string) {
   if (!role || role === 'owner') return NAV_GROUPS;
-  const allowed = role === 'cashier' ? CASHIER_ROUTES : MANAGER_ROUTES;
+  let allowed: Set<string>;
+  if (role === 'cashier') allowed = CASHIER_ROUTES;
+  else if (role === 'accountant') allowed = ACCOUNTANT_ROUTES;
+  else allowed = MANAGER_ROUTES;
   return NAV_GROUPS
     .map((g) => ({ ...g, items: g.items.filter((i) => allowed.has(i.to)) }))
     .filter((g) => g.items.length > 0);
@@ -373,7 +377,10 @@ export function AppLayout() {
         <nav className="md:hidden fixed bottom-0 left-0 right-0 border-t border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 flex pb-safe-bottom">
           {BOTTOM_TABS.filter((tab) => {
             if (!role || role === 'owner') return true;
-            const allowed = role === 'cashier' ? CASHIER_ROUTES : MANAGER_ROUTES;
+            let allowed: Set<string>;
+            if (role === 'cashier') allowed = CASHIER_ROUTES;
+            else if (role === 'accountant') allowed = ACCOUNTANT_ROUTES;
+            else allowed = MANAGER_ROUTES;
             return allowed.has(tab.to);
           }).map((tab) => (
             <NavLink

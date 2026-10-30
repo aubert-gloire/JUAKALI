@@ -104,7 +104,7 @@ export const statsApi = {
 
 // ── Sales ─────────────────────────────────────────────────────────────────────
 
-export type CartItem = { productId: string; qty: number };
+export type CartItem = { productId: string; qty: number; unitPrice?: number };
 
 export type CompleteSaleBody = {
   items: CartItem[];

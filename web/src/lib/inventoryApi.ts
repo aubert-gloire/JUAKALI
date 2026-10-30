@@ -27,6 +27,7 @@ export interface Product {
   unit: string;
   costPrice: number;
   sellingPrice: number;
+  minSellingPrice?: number;
   stockQty: number;
   reorderLevel: number;
   isActive: boolean;

@@ -2,7 +2,7 @@ import { Router } from 'express';
 import mongoose from 'mongoose';
 import { requireAuth } from '../../middleware/auth';
 import { requireTenant } from '../../middleware/tenant';
-import { requireRole } from '../../middleware/roleGuard';
+import { requireRole, requireAnyRole } from '../../middleware/roleGuard';
 import { asyncHandler } from '../../utils/asyncHandler';
 import { Errors } from '../../utils/errors';
 import { nextSeq } from '../../models/Counter';
@@ -179,6 +179,7 @@ salesRouter.get(
 
 salesRouter.post(
   '/',
+  requireAnyRole(['owner', 'manager', 'cashier']),
   asyncHandler(async (req, res) => {
     const body = CompleteSaleSchema.parse(req.body);
 
@@ -210,15 +211,22 @@ salesRouter.post(
       );
       if (!updated) throw Errors.negativeStock(product.name);
 
+      const unitPrice = item.unitPrice ?? product.sellingPrice;
+      if (product.minSellingPrice != null && unitPrice < product.minSellingPrice) {
+        throw Errors.validation(
+          `Price for "${product.name}" cannot be below the minimum of ${product.minSellingPrice.toLocaleString()}`,
+        );
+      }
+
       saleItems.push({
         productId: product._id,
         productName: product.name,
         sku: product.sku,
         qty: item.qty,
         unitCost: product.costPrice,
-        unitPrice: product.sellingPrice,
+        unitPrice,
         totalCost: item.qty * product.costPrice,
-        totalPrice: item.qty * product.sellingPrice,
+        totalPrice: item.qty * unitPrice,
         _qtyBefore: updated.stockQty, // used for the ledger entry below
       });
     }
@@ -526,6 +534,7 @@ salesRouter.get(
 
 salesRouter.post(
   '/expenses',
+  requireRole('manager'),
   asyncHandler(async (req, res) => {
     const body = ExpenseSchema.parse(req.body);
     const expense = await Expense.create({

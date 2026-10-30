@@ -27,15 +27,16 @@ import { clsx } from 'clsx';
 // ── Schemas ───────────────────────────────────────────────────────────────────
 
 const ProductSchema = z.object({
-  name:          z.string().min(1, 'Name is required'),
-  sku:           z.string().optional(),
-  barcode:       z.string().optional(),
-  unit:          z.string().default('pcs'),
-  costPrice:     z.coerce.number().int().min(0, 'Must be ≥ 0'),
-  sellingPrice:  z.coerce.number().int().min(0, 'Must be ≥ 0'),
-  stockQty:      z.coerce.number().int().min(0).default(0),
-  reorderLevel:  z.coerce.number().int().min(0).optional(),
-  description:   z.string().optional(),
+  name:             z.string().min(1, 'Name is required'),
+  sku:              z.string().optional(),
+  barcode:          z.string().optional(),
+  unit:             z.string().default('pcs'),
+  costPrice:        z.coerce.number().int().min(0, 'Must be ≥ 0'),
+  sellingPrice:     z.coerce.number().int().min(0, 'Must be ≥ 0'),
+  minSellingPrice:  z.coerce.number().int().min(0).optional(),
+  stockQty:         z.coerce.number().int().min(0).default(0),
+  reorderLevel:     z.coerce.number().int().min(0).optional(),
+  description:      z.string().optional(),
 });
 type ProductFormData = z.infer<typeof ProductSchema>;
 
@@ -81,24 +82,25 @@ function ProductModal({
     formState: { errors, isSubmitting },
   } = useForm<ProductFormData>({
     resolver: zodResolver(ProductSchema),
-    defaultValues: { costPrice: 0, sellingPrice: 0, stockQty: 0, name: '', sku: '', barcode: '', description: '', reorderLevel: undefined },
+    defaultValues: { costPrice: 0, sellingPrice: 0, minSellingPrice: undefined, stockQty: 0, name: '', sku: '', barcode: '', description: '', reorderLevel: undefined },
   });
 
   useEffect(() => {
     if (editing) {
       reset({
-        name:         editing.name,
-        sku:          editing.sku ?? '',
-        barcode:      editing.barcode ?? '',
-        unit:         editing.unit,
-        costPrice:    editing.costPrice,
-        sellingPrice: editing.sellingPrice,
-        stockQty:     editing.stockQty,
-        reorderLevel: editing.reorderLevel ?? undefined,
-        description:  editing.description ?? '',
+        name:            editing.name,
+        sku:             editing.sku ?? '',
+        barcode:         editing.barcode ?? '',
+        unit:            editing.unit,
+        costPrice:       editing.costPrice,
+        sellingPrice:    editing.sellingPrice,
+        minSellingPrice: editing.minSellingPrice ?? undefined,
+        stockQty:        editing.stockQty,
+        reorderLevel:    editing.reorderLevel ?? undefined,
+        description:     editing.description ?? '',
       });
     } else {
-      reset({ costPrice: 0, sellingPrice: 0, stockQty: 0, name: '', sku: '', barcode: '', description: '', reorderLevel: undefined });
+      reset({ costPrice: 0, sellingPrice: 0, minSellingPrice: undefined, stockQty: 0, name: '', sku: '', barcode: '', description: '', reorderLevel: undefined });
     }
   }, [editing, open, reset]);
 
@@ -157,6 +159,13 @@ function ProductModal({
               <label className="label">Selling Price (RWF) *</label>
               <input type="number" {...register('sellingPrice')} className="input mt-1" min={0} step={1} />
               {errors.sellingPrice && <p className="text-xs text-red-500 mt-0.5">{errors.sellingPrice.message}</p>}
+            </div>
+
+            <div className="col-span-2">
+              <label className="label">Minimum Selling Price (RWF)</label>
+              <input type="number" {...register('minSellingPrice')} className="input mt-1" min={0} step={1} placeholder="No floor — staff can sell at any price" />
+              <p className="text-[10px] text-slate-400 mt-0.5">Staff cannot sell below this price during negotiation</p>
+              {errors.minSellingPrice && <p className="text-xs text-red-500 mt-0.5">{errors.minSellingPrice.message}</p>}
             </div>
 
             <div>

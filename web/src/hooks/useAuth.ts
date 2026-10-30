@@ -12,7 +12,7 @@ export interface AuthUser {
 
 export interface ShopMembership {
   shopId: { _id: string; name: string; location: string; currency: string; timezone: string };
-  role: 'owner' | 'manager' | 'cashier';
+  role: 'owner' | 'manager' | 'cashier' | 'accountant';
 }
 
 export function useAuth() {
